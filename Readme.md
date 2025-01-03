@@ -4,6 +4,9 @@ Basically, this is supposed to be a modernized BBS for radio,
 but with clients and servers exchanging binary messages 
 (which can be compressed automatically) rather than human-typed text.
 
+Right now, it will use ax25 connected sessions through AGWPE, 
+though I make add an unconnected protocol using UI later on..
+
 I'm planning several features like:
 
 - automatic compression for all RF communication
@@ -11,7 +14,7 @@ I'm planning several features like:
 - RF beacon
 - administration over RF
 - object storage/retrieval
-- running user-scripts scripts or shell commands on the server in containers with podman/docker
+- running user-defined scripts or shell commands on the server in containers with podman/docker
 - possibly a cron system (again in containers for safety)
 - maybe an e-mail or an sms gateway (though clever user uploaded scripts could do this instead)
 - maybe APRS integration through APRS-IS
