@@ -1,8 +1,8 @@
 This whole project is still a major WIP. Details to follow.
 
 Basically, this is supposed to be a modernized BBS for radio,
-but exchanging binary messages (which can be compressed automatically)
-rather than human-typed text.
+but with clients and servers exchanging binary messages 
+(which can be compressed automatically) rather than human-typed text.
 
 I'm planning several features like:
 
