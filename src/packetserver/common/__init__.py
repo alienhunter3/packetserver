@@ -6,6 +6,8 @@ from enum import Enum
 import bz2
 from typing import Union, Self
 import datetime
+import logging
+import ax25
 
 
 class PacketServerConnection(Connection):
@@ -20,6 +22,7 @@ class PacketServerConnection(Connection):
         self.data_lock = Lock()
         self.connection_created = datetime.datetime.now(datetime.UTC)
         self.connection_last_activity = datetime.datetime.now(datetime.UTC)
+        self.closing = False
 
 
     @property
@@ -38,20 +41,26 @@ class PacketServerConnection(Connection):
 
     def connected(self):
         print("connected")
+        logging.debug(f"new connection from {self.call_from} to {self.call_to}")
         for fn in PacketServerConnection.connection_subscribers:
             fn(self)
 
     def disconnected(self):
-        pass
+        logging.debug(f"connection disconnected: {self.call_from} -> {self.call_to}")
 
     def data_received(self, pid, data):
         self.connection_last_activity = datetime.datetime.now(datetime.UTC)
+        logging.debug(f"received data: {data}")
         with self.data_lock:
+            logging.debug(f"fed received data to unpacker {data}")
             self.data.feed(data)
         for fn in PacketServerConnection.receive_subscribers:
+            logging.debug("found function to notify about received data")
             fn(self)
+            logging.debug("notified function about received data")
 
     def send_data(self, data: Union[bytes, bytearray]):
+        logging.debug(f"sending data: {data}")
         self.connection_last_activity = datetime.datetime.now(datetime.UTC)
         super().send_data(data)
 
