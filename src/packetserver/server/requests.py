@@ -2,7 +2,16 @@
 
 from msgpack.exceptions import OutOfData
 from packetserver.common import Message, Request, Response, PacketServerConnection
+from .bulletin import bulletin_root_handler
 import logging
+from typing import Union
+
+def send_404(conn: PacketServerConnection, payload: Union[bytes, bytearray, str, dict] = ""):
+    response_404 = Response.blank()
+    response_404.status_code = 404
+    response_404.payload = payload
+    if conn.state.name == "CONNECTED":
+        conn.send_data(response_404.pack())
 
 def handle_root_get(req: Request, conn: PacketServerConnection,
                     server: 'packetserver.server.Server'):
@@ -22,15 +31,27 @@ def handle_root_get(req: Request, conn: PacketServerConnection,
         'motd': motd
     }
 
-    if conn.state.name == "CONNECTED":
+    if conn.state.name == "CONNECTED" and not conn.closing:
         logging.debug(f"sending response: {response}, {response.compression}, {response.payload}")
         conn.send_data(response.pack())
         logging.debug("response sent successfully")
 
+def root_root_handler(req: Request, conn: PacketServerConnection,
+                    server: 'packetserver.server.Server'):
+    logging.debug(f"{req} got to root_root_handler")
+    if req.method is Request.Method.GET:
+        handle_root_get(req, conn, server)
+    else:
+        logging.warning(f"unhandled request found: {req}")
+        response_404 = Response.blank()
+        response_404.status_code = 404
+        if (conn.state.name == "CONNECTED") and not conn.closing:
+            conn.send_data(response_404.pack())
+            logging.debug(f"Sent 404 in response to {req}")
+
 standard_handlers = {
-    "": {
-        "GET": handle_root_get
-    }
+    "": root_root_handler,
+    "bulletin": bulletin_root_handler
 }
 
 def handle_request(req: Request, conn: PacketServerConnection,
@@ -40,11 +61,11 @@ def handle_request(req: Request, conn: PacketServerConnection,
     if conn.closing:
         logging.debug("Connection marked as closing. Ignoring it.")
         return
-    if req.path in server.handlers:
-        if req.method.name in server.handlers[req.path]:
-            logging.debug(f"found handler for req {req}")
-            server.handlers[req.path][req.method.name](req, conn, server)
-            return
+    req_root_path = req.path.split("/")[0]
+    if req_root_path in server.handlers:
+        logging.debug(f"found handler for req {req}")
+        server.handlers[req_root_path](req, conn, server)
+        return
     logging.warning(f"unhandled request found: {req}")
     response_404 = Response.blank()
     response_404.status_code = 404

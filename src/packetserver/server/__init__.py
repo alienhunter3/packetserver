@@ -1,6 +1,7 @@
 import pe.app
 import packetserver.common
 from packetserver.server.constants import default_server_config
+from packetserver.server.bulletin import init_bulletins
 from copy import deepcopy
 import ax25
 from pathlib import Path
@@ -13,6 +14,7 @@ from packetserver.server.requests import standard_handlers
 import logging
 import signal
 import time
+from typing import Callable
 
 
 class Server:
@@ -46,6 +48,7 @@ class Server:
                 conn.root.config['blacklist'] = PersistentList()
             if 'users' not in conn.root():
                 conn.root.users = OOBTree()
+            init_bulletins(conn.root())
         self.app = pe.app.Application()
         packetserver.common.PacketServerConnection.receive_subscribers.append(lambda x: self.server_receiver(x))
         packetserver.common.PacketServerConnection.connection_subscribers.append(lambda x: self.server_connection_bouncer(x))
@@ -82,6 +85,9 @@ class Server:
     def server_receiver(self, conn: packetserver.common.PacketServerConnection):
         logging.debug("running server receiver")
         process_incoming_data(conn, self)
+
+    def register_path_handler(self, path_root: str, fn: Callable):
+        self.handlers[path_root.strip().lower()] = fn
 
     def start(self):
         self.app.start(self.pe_server, self.pe_port)

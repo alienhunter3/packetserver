@@ -193,6 +193,9 @@ class Request(Message):
         if ('p' in msg.data) and (type(msg.data['p']) is not str):
             raise ValueError("Path of Request must be a string.")
 
+        if 'p' in self.data:
+            self.data['p'] = str(self.data['p']).strip().lower()
+
         if 'm' in msg.data:
             if type(msg.data['m']) is not bytes:
                 raise ValueError("Method of Request must be bytes.")
@@ -207,7 +210,7 @@ class Request(Message):
 
     @path.setter
     def path(self, path: str):
-        self.data['p'] = str(path.strip())
+        self.data['p'] = str(path).strip().lower()
 
     @property
     def method(self) -> Method:
