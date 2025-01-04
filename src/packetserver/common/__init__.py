@@ -113,9 +113,10 @@ class Message:
     def pack(self) -> bytes:
         output = {'t': self.type.value, 'c': self.compression.value}
         data_bytes = self.data_bytes
-
+        logging.debug("Packing Message")
         if (self.compression is self.CompressionType.NONE) or (len(data_bytes) < 30):
             output['d'] = data_bytes
+            output['c'] = self.CompressionType.NONE.value
             return packb(output)
 
         if self.compression is self.CompressionType.BZIP2:
@@ -282,3 +283,34 @@ class Response(Message):
 
     def __repr__(self):
         return f"<Response: {self.status_code}>"
+
+def send_response(conn: PacketServerConnection, response: Response, original_request: Request,
+                  compression: Message.CompressionType = Message.CompressionType.BZIP2):
+    if conn.state.name == "CONNECTED" and not conn.closing:
+
+        # figure out compression setting based on request
+        comp = compression
+
+        if 'C' in original_request.vars:
+            val = original_request.vars['C']
+            for i in Message.CompressionType:
+                if str(val).strip().upper() == i.name:
+                    comp = i
+                    break
+                try:
+                    if int(val) == i.value:
+                        comp = i
+                except ValueError:
+                    pass
+        response.compression = comp
+
+        logging.debug(f"sending response: {response}, {response.compression}, {response.payload}")
+        conn.send_data(response.pack())
+        logging.debug("response sent successfully")
+
+def send_blank_response(conn: PacketServerConnection, original_request: Request, status_code: int = 200,
+                  payload: Union[bytes, bytearray, str, dict] = ""):
+    response = Response.blank()
+    response.status_code = status_code
+    response.payload = payload
+    send_response(conn, response, original_request)

@@ -1,19 +1,13 @@
+import ax25
 import persistent
 import persistent.list
 from persistent.mapping import PersistentMapping
 import datetime
 from typing import Self,Union,Optional
 from packetserver.common import PacketServerConnection, Request, Response, Message
-from packetserver.server import Server
-from packetserver.server.requests import send_404
+from packetserver.server.requests import send_response, send_blank_response
 import ZODB
 import logging
-
-def init_bulletins(root: PersistentMapping):
-    if 'bulletins' not in root:
-        root['bulletins'] = persistent.list.PersistentList()
-    if 'bulletin_counter' not in root:
-        root['bulletin_counter'] = 0
 
 def get_new_bulletin_id(root: PersistentMapping) -> int:
     if 'bulletin_counter' not in root:
@@ -31,6 +25,17 @@ class Bulletin(persistent.Persistent):
             if bull.id == bid:
                 return bull
         return None
+
+    @classmethod
+    def get_recent_bulletins(cls, db_root: PersistentMapping, limit: int = None) -> list:
+        all_bulletins = sorted(db_root['bulletins'], key=lambda bulletin: bulletin.updated_at, reverse=True)
+        if not limit:
+            return all_bulletins
+        else:
+            if len(all_bulletins) < limit:
+                return all_bulletins
+            else:
+                return all_bulletins[:limit]
 
     def __init__(self, author: str, subject: str, text: str):
         self.author = author
@@ -69,33 +74,74 @@ class Bulletin(persistent.Persistent):
             "updated_at": self.updated_at.isoformat()
         }
 
-def handle_bulletin_get(req: Request, conn: PacketServerConnection, server: Server):
-    response = Response.blank()
-    with server.db.transaction() as db:
-        pass
-    return response
 
-def handle_bulletin_post(req: Request, conn: PacketServerConnection, server: Server):
+def handle_bulletin_get(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     response = Response.blank()
-    with server.db.transaction() as db:
-        pass
-    return response
+    sp = req.path.split("/")
+    bid = None
+    limit = None
+    if 'limit' in req.vars:
+        try:
+            limit = int(req.vars['limit'])
+        except ValueError:
+            pass
+    if 'id' in req.vars:
+        try:
+            bid = int(req.vars['id'])
+        except ValueError:
+            pass
+    if len(sp) > 2:
+        try:
+            bid = int(sp[2].strip())
+        except ValueError:
+            pass
 
-def handle_bulletin_update(req: Request, conn: PacketServerConnection, server: Server):
+    with db.transaction() as db:
+        if bid:
+            bull = Bulletin.get_bulletin_by_id(bid, db.root())
+            if bull:
+                response.payload = bull.to_dict()
+                response.status_code = 200
+            else:
+                response.status_code = 404
+        else:
+            bulls = Bulletin.get_recent_bulletins(db.root(), limit=limit)
+            response.payload = [bulletin.to_dict() for bulletin in bulls]
+            response.status_code = 200
+
+    send_response(conn, response, req)
+
+def handle_bulletin_post(req: Request, conn: PacketServerConnection, db: ZODB.DB):
+    author = ax25.Address(conn.remote_callsign).call
+    if type(req.payload) is not dict:
+        send_blank_response(conn, req, 400, payload="Include dict in payload with subject and body")
+    if 'subject' not in req.payload:
+        send_blank_response(conn, req, 400, payload="Include dict in payload with subject and body")
+    if 'body' not in req.payload:
+        send_blank_response(conn, req, 400, payload="Include dict in payload with subject and body")
+    b = Bulletin(author, str(req.payload['subject']), str(req.payload['body']))
     response = Response.blank()
-    with server.db.transaction() as db:
-        pass
-    return response
+    with db.transaction() as db:
+        b.write_new(db.root())
+    send_blank_response(conn, req, status_code=201)
 
-def handle_bulletin_delete(req: Request, conn: PacketServerConnection, server: Server):
+def handle_bulletin_update(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     response = Response.blank()
-    with server.db.transaction() as db:
+    with db.transaction() as db:
         pass
-    return response
+    send_response(conn, response, req)
 
-def bulletin_root_handler(req: Request, conn: PacketServerConnection, server: Server):
+def handle_bulletin_delete(req: Request, conn: PacketServerConnection, db: ZODB.DB):
+    response = Response.blank()
+    with db.transaction() as db:
+        pass
+    send_response(conn, response, req)
+
+def bulletin_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     logging.debug(f"{req} being processed by bulletin_root_handler")
     if req.method is Request.Method.GET:
-        handle_bulletin_get(req, conn, server)
+        handle_bulletin_get(req, conn, db)
+    elif req.method is Request.Method.POST:
+        handle_bulletin_post(req, conn, db)
     else:
-        send_404(conn)
+        send_blank_response(conn, req, status_code=404)

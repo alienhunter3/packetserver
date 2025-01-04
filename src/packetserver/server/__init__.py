@@ -1,7 +1,6 @@
 import pe.app
-import packetserver.common
+from packetserver.common import Response, Message, Request, PacketServerConnection, send_response, send_blank_response
 from packetserver.server.constants import default_server_config
-from packetserver.server.bulletin import init_bulletins
 from copy import deepcopy
 import ax25
 from pathlib import Path
@@ -9,13 +8,19 @@ import ZODB, ZODB.FileStorage
 from BTrees.OOBTree import OOBTree
 from persistent.mapping import PersistentMapping
 from persistent.list import PersistentList
-from packetserver.server.requests import process_incoming_data
 from packetserver.server.requests import standard_handlers
 import logging
 import signal
 import time
-from typing import Callable
+from msgpack.exceptions import OutOfData
+from typing import Callable, Self, Union
 
+
+def init_bulletins(root: PersistentMapping):
+    if 'bulletins' not in root:
+        root['bulletins'] = PersistentList()
+    if 'bulletin_counter' not in root:
+        root['bulletin_counter'] = 0
 
 class Server:
     def __init__(self, pe_server: str, port: int, server_callsign: str, data_dir: str = None):
@@ -50,8 +55,8 @@ class Server:
                 conn.root.users = OOBTree()
             init_bulletins(conn.root())
         self.app = pe.app.Application()
-        packetserver.common.PacketServerConnection.receive_subscribers.append(lambda x: self.server_receiver(x))
-        packetserver.common.PacketServerConnection.connection_subscribers.append(lambda x: self.server_connection_bouncer(x))
+        PacketServerConnection.receive_subscribers.append(lambda x: self.server_receiver(x))
+        PacketServerConnection.connection_subscribers.append(lambda x: self.server_connection_bouncer(x))
         signal.signal(signal.SIGINT, self.exit_gracefully)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
 
@@ -60,7 +65,7 @@ class Server:
     def data_file(self) -> str:
         return str(Path(self.home_dir).joinpath('data.zopedb'))
 
-    def server_connection_bouncer(self, conn: packetserver.common.PacketServerConnection):
+    def server_connection_bouncer(self, conn: PacketServerConnection):
         logging.debug("new connection bouncer checking for blacklist")
         # blacklist check
         blacklisted = False
@@ -82,9 +87,46 @@ class Server:
                     break
             conn.close()
 
-    def server_receiver(self, conn: packetserver.common.PacketServerConnection):
+    def handle_request(self, req: Request, conn: PacketServerConnection):
+        """Handles a proper request by handing off to the appropriate function depending on method and Path."""
+        logging.debug(f"asked to handle request: {req}")
+        if conn.closing:
+            logging.debug("Connection marked as closing. Ignoring it.")
+            return
+        req_root_path = req.path.split("/")[0]
+        if req_root_path in self.handlers:
+            logging.debug(f"found handler for req {req}")
+            self.handlers[req_root_path](req, conn, self.db)
+            return
+        logging.warning(f"unhandled request found: {req}")
+        send_blank_response(conn, req, status_code=404)
+
+    def process_incoming_data(self, connection: PacketServerConnection):
+        """Handles incoming data."""
+        logging.debug("Running process_incoming_data on connection")
+        with connection.data_lock:
+            logging.debug("Data lock acquired")
+            while True:
+                try:
+                    msg = Message.partial_unpack(connection.data.unpack())
+                    logging.debug(f"parsed a Message from data received")
+                except OutOfData:
+                    logging.debug("no complete message yet, done until more data arrives")
+                    break
+                except ValueError:
+                    connection.send_data(b"BAD REQUEST. COULD NOT PARSE INCOMING DATA AS PACKETSERVER MESSAGE")
+                try:
+                    request = Request(msg)
+                    logging.debug(f"parsed Message into request {request}")
+                except ValueError:
+                    connection.send_data(b"BAD REQUEST. DID NOT RECEIVE A REQUEST MESSAGE.")
+                logging.debug(f"attempting to handle request {request}")
+                self.handle_request(request, connection)
+                logging.debug("request handled")
+
+    def server_receiver(self, conn: PacketServerConnection):
         logging.debug("running server receiver")
-        process_incoming_data(conn, self)
+        self.process_incoming_data(conn)
 
     def register_path_handler(self, path_root: str, fn: Callable):
         self.handlers[path_root.strip().lower()] = fn
