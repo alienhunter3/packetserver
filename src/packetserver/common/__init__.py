@@ -5,6 +5,7 @@ from msgpack import packb, unpackb
 from enum import Enum
 import bz2
 from typing import Union, Self
+import datetime
 
 
 class PacketServerConnection(Connection):
@@ -17,6 +18,23 @@ class PacketServerConnection(Connection):
         # Now perform any initialization of your own that you might need
         self.data = Unpacker()
         self.data_lock = Lock()
+        self.connection_created = datetime.datetime.now(datetime.UTC)
+        self.connection_last_activity = datetime.datetime.now(datetime.UTC)
+
+
+    @property
+    def local_callsign(self):
+        if self.incoming:
+            return self.call_to
+        else:
+            return self.call_from
+
+    @property
+    def remote_callsign(self):
+        if self.incoming:
+            return self.call_from
+        else:
+            return self.call_to
 
     def connected(self):
         print("connected")
@@ -27,10 +45,15 @@ class PacketServerConnection(Connection):
         pass
 
     def data_received(self, pid, data):
+        self.connection_last_activity = datetime.datetime.now(datetime.UTC)
         with self.data_lock:
             self.data.feed(data)
         for fn in PacketServerConnection.receive_subscribers:
             fn(self)
+
+    def send_data(self, data: Union[bytes, bytearray]):
+        self.connection_last_activity = datetime.datetime.now(datetime.UTC)
+        super().send_data(data)
 
     @classmethod
     def query_accept(cls, port, call_from, call_to):
@@ -117,15 +140,8 @@ class Message:
             self.data['d'] = str(payload)
 
     @classmethod
-    def unpack(cls, msg_bytes: bytes) -> Self:
-        try:
-            unpacked = unpackb(msg_bytes)
-        except Exception as e:
-            raise ValueError("ERROR: msg_bytes didn't contain a valid msgpack object.\n" + str(e))
-        for i in ('t', 'c', 'd'):
-            if i not in unpacked:
-                raise ValueError("ERROR: unpacked bytes do not contain a valid Message object.")
-
+    def partial_unpack(cls, msg: dict) -> Self:
+        unpacked = msg
         comp = Message.CompressionType(unpacked['c'])
         msg_type = Message.MessageType(unpacked['t'])
         raw_data = unpacked['d']
@@ -136,7 +152,21 @@ class Message:
             data = unpackb(bz2.decompress(raw_data))
         else:
             raise NotImplementedError(f"Compression type {comp.name} is not implemented yet.")
+
         return Message(msg_type, comp, data)
+
+    @classmethod
+    def unpack(cls, msg_bytes: bytes) -> Self:
+        try:
+            unpacked = unpackb(msg_bytes)
+        except Exception as e:
+            raise ValueError("ERROR: msg_bytes didn't contain a valid msgpack object.\n" + str(e))
+        if type(unpacked) is not dict:
+            raise ValueError("ERROR: unpacked message was not a packetserver message.")
+        for i in ('t', 'c', 'd'):
+            if i not in unpacked:
+                raise ValueError("ERROR: unpacked message was not a packetserver message.")
+        return Message.partial_unpack(unpacked)
 
 class Request(Message):
     class Method(Enum):
@@ -162,7 +192,7 @@ class Request(Message):
     @property
     def path(self):
         if 'p' in self.data:
-            return str(self.data['p'])
+            return str(self.data['p']).lower().strip()
         else:
             return ""
 
