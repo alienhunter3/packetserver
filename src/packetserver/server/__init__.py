@@ -1,6 +1,7 @@
 import pe.app
 from packetserver.common import Response, Message, Request, PacketServerConnection, send_response, send_blank_response
 from packetserver.server.constants import default_server_config
+from packetserver.server.users import User
 from copy import deepcopy
 import ax25
 from pathlib import Path
@@ -49,10 +50,18 @@ class Server:
         self.db = ZODB.DB(self.storage)
         with self.db.transaction() as conn:
             if 'config' not in conn.root():
+                logging.debug("no config, writing blank default config")
                 conn.root.config = PersistentMapping(deepcopy(default_server_config))
                 conn.root.config['blacklist'] = PersistentList()
+            if 'SYSTEM' not in conn.root.config['blacklist']:
+                logging.debug("Adding 'SYSTEM' to blacklist in case someone feels like violating FCC rules.")
+                conn.root.config['blacklist'].append('SYSTEM')
             if 'users' not in conn.root():
-                conn.root.users = OOBTree()
+                logging.debug("users missing, creating bucket")
+                conn.root.users = PersistentMapping()
+            if 'SYSTEM' not in conn.root.users:
+                logging.debug("Creating system user for first time.")
+                User('SYSTEM', hidden=True, enabled=False).write_new(conn.root())
             init_bulletins(conn.root())
         self.app = pe.app.Application()
         PacketServerConnection.receive_subscribers.append(lambda x: self.server_receiver(x))
@@ -66,19 +75,29 @@ class Server:
         return str(Path(self.home_dir).joinpath('data.zopedb'))
 
     def server_connection_bouncer(self, conn: PacketServerConnection):
-        logging.debug("new connection bouncer checking for blacklist")
+        logging.debug("new connection bouncer checking user status")
         # blacklist check
         blacklisted = False
+        base = ax25.Address(conn.remote_callsign).call
         with self.db.transaction() as storage:
             if 'blacklist' in storage.root.config:
                 bl = storage.root.config['blacklist']
                 logging.debug(f"A blacklist exists: {bl}")
-                base = ax25.Address(conn.remote_callsign).call
                 logging.debug(f"Checking callsign {base.upper()}")
                 if base.upper() in bl:
                     logging.debug(f"Connection from blacklisted callsign {base}")
                     conn.closing = True
                     blacklisted = True
+
+            # user object check
+            if base in storage.root.users:
+                logging.debug(f"User {base} exists in db.")
+                u = storage.root.users[base]
+                u.seen()
+            else:
+                logging.info(f"Creating new user {base}")
+                u = User(base.upper().strip())
+                u.write_new(storage.root())
         if blacklisted:
             count = 0
             while count < 10:

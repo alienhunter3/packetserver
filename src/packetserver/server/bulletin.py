@@ -4,8 +4,7 @@ import persistent.list
 from persistent.mapping import PersistentMapping
 import datetime
 from typing import Self,Union,Optional
-from packetserver.common import PacketServerConnection, Request, Response, Message
-from packetserver.server.requests import send_response, send_blank_response
+from packetserver.common import PacketServerConnection, Request, Response, Message, send_response, send_blank_response
 import ZODB
 import logging
 
@@ -41,8 +40,8 @@ class Bulletin(persistent.Persistent):
         self.author = author
         self.subject = subject
         self.body = text
-        self.created_at = None
-        self.updated_at = None
+        self.created_at = datetime.datetime.now(datetime.UTC)
+        self.updated_at = datetime.datetime.now(datetime.UTC)
         self.id = None
 
     @classmethod
@@ -78,6 +77,7 @@ class Bulletin(persistent.Persistent):
 def handle_bulletin_get(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     response = Response.blank()
     sp = req.path.split("/")
+    logging.debug(f"bulletin get path: {sp}")
     bid = None
     limit = None
     if 'limit' in req.vars:
@@ -90,14 +90,18 @@ def handle_bulletin_get(req: Request, conn: PacketServerConnection, db: ZODB.DB)
             bid = int(req.vars['id'])
         except ValueError:
             pass
-    if len(sp) > 2:
+    if len(sp) > 1:
+        logging.debug(f"checking path for bulletin id")
         try:
-            bid = int(sp[2].strip())
+            logging.debug(f"{sp[1]}")
+            bid = int(sp[1].strip())
         except ValueError:
             pass
+    logging.debug(f"bid is {bid}")
 
     with db.transaction() as db:
-        if bid:
+        if bid is not None:
+            logging.debug(f"retrieving bulletin: {bid}")
             bull = Bulletin.get_bulletin_by_id(bid, db.root())
             if bull:
                 response.payload = bull.to_dict()
@@ -105,6 +109,7 @@ def handle_bulletin_get(req: Request, conn: PacketServerConnection, db: ZODB.DB)
             else:
                 response.status_code = 404
         else:
+            logging.debug(f"retrieving all bulletins")
             bulls = Bulletin.get_recent_bulletins(db.root(), limit=limit)
             response.payload = [bulletin.to_dict() for bulletin in bulls]
             response.status_code = 200
@@ -125,13 +130,13 @@ def handle_bulletin_post(req: Request, conn: PacketServerConnection, db: ZODB.DB
         b.write_new(db.root())
     send_blank_response(conn, req, status_code=201)
 
-def handle_bulletin_update(req: Request, conn: PacketServerConnection, db: ZODB.DB):
+def handle_bulletin_update(req: Request, conn: PacketServerConnection, db: ZODB.DB): # TODO
     response = Response.blank()
     with db.transaction() as db:
         pass
     send_response(conn, response, req)
 
-def handle_bulletin_delete(req: Request, conn: PacketServerConnection, db: ZODB.DB):
+def handle_bulletin_delete(req: Request, conn: PacketServerConnection, db: ZODB.DB): # TODO
     response = Response.blank()
     with db.transaction() as db:
         pass

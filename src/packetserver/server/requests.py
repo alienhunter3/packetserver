@@ -3,6 +3,7 @@
 from msgpack.exceptions import OutOfData
 from packetserver.common import Message, Request, Response, PacketServerConnection, send_response, send_blank_response
 from .bulletin import bulletin_root_handler
+from .users import user_root_handler
 import logging
 from typing import Union
 import ZODB
@@ -38,7 +39,8 @@ def root_root_handler(req: Request, conn: PacketServerConnection,
 
 standard_handlers = {
     "": root_root_handler,
-    "bulletin": bulletin_root_handler
+    "bulletin": bulletin_root_handler,
+    "user": user_root_handler
 }
 
 
