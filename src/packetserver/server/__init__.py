@@ -15,6 +15,7 @@ import signal
 import time
 from msgpack.exceptions import OutOfData
 from typing import Callable, Self, Union
+from traceback import  format_exc
 
 
 def init_bulletins(root: PersistentMapping):
@@ -24,13 +25,16 @@ def init_bulletins(root: PersistentMapping):
         root['bulletin_counter'] = 0
 
 class Server:
-    def __init__(self, pe_server: str, port: int, server_callsign: str, data_dir: str = None):
+    def __init__(self, pe_server: str, port: int, server_callsign: str, data_dir: str = None, zeo: bool = True):
         if not ax25.Address.valid_call(server_callsign):
             raise ValueError(f"Provided callsign '{server_callsign}' is invalid.")
         self.callsign = server_callsign
         self.pe_server = pe_server
         self.pe_port = port
         self.handlers = deepcopy(standard_handlers)
+        self.zeo_addr = None
+        self.zeo_stop = None
+        self.zeo = zeo
         if data_dir:
             data_path = Path(data_dir)
         else:
@@ -68,6 +72,8 @@ class Server:
         PacketServerConnection.connection_subscribers.append(lambda x: self.server_connection_bouncer(x))
         signal.signal(signal.SIGINT, self.exit_gracefully)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
+        self.db.close()
+        self.storage.close()
 
 
     @property
@@ -145,12 +151,25 @@ class Server:
 
     def server_receiver(self, conn: PacketServerConnection):
         logging.debug("running server receiver")
-        self.process_incoming_data(conn)
+        try:
+            self.process_incoming_data(conn)
+        except Exception:
+            logging.debug(f"Unhandled exception while processing incoming data:\n{format_exc()}")
 
     def register_path_handler(self, path_root: str, fn: Callable):
         self.handlers[path_root.strip().lower()] = fn
 
     def start(self):
+        if not self.zeo:
+            self.storage = ZODB.FileStorage.FileStorage(self.data_file)
+            self.db = ZODB.DB(self.storage)
+        else:
+            import ZEO
+            address, stop = ZEO.server(path=self.data_file)
+            self.zeo_addr = address
+            self.zeo_stop = stop
+            self.db = ZEO.DB(self.zeo_addr)
+            logging.info(f"Starting ZEO server with address {self.zeo_addr}")
         self.app.start(self.pe_server, self.pe_port)
         self.app.register_callsigns(self.callsign)
 
@@ -164,3 +183,6 @@ class Server:
         self.app.stop()
         self.storage.close()
         self.db.close()
+        if self.zeo:
+            logging.info("Stopping ZEO.")
+            self.zeo_stop()

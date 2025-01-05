@@ -7,6 +7,7 @@ from typing import Self,Union,Optional
 from packetserver.common import PacketServerConnection, Request, Response, Message, send_response, send_blank_response
 import ZODB
 import logging
+from packetserver.server.users import user_authorized
 
 def get_new_bulletin_id(root: PersistentMapping) -> int:
     if 'bulletin_counter' not in root:
@@ -144,6 +145,11 @@ def handle_bulletin_delete(req: Request, conn: PacketServerConnection, db: ZODB.
 
 def bulletin_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     logging.debug(f"{req} being processed by bulletin_root_handler")
+    if not user_authorized(conn, db):
+        logging.debug(f"user {conn.remote_callsign} not authorized")
+        send_blank_response(conn, req, status_code=401)
+        return
+    logging.debug("user is authorized")
     if req.method is Request.Method.GET:
         handle_bulletin_get(req, conn, db)
     elif req.method is Request.Method.POST:

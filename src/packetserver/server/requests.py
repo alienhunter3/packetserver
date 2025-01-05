@@ -3,7 +3,7 @@
 from msgpack.exceptions import OutOfData
 from packetserver.common import Message, Request, Response, PacketServerConnection, send_response, send_blank_response
 from .bulletin import bulletin_root_handler
-from .users import user_root_handler
+from .users import user_root_handler, user_authorized
 import logging
 from typing import Union
 import ZODB
@@ -21,9 +21,15 @@ def handle_root_get(req: Request, conn: PacketServerConnection,
         if 'operator' in storage.root.config:
             operator = storage.root.config['operator']
 
+    if user_authorized(conn, db):
+        user_message = f"User {conn.remote_callsign} is enabled."
+    else:
+        user_message = f"User {conn.remote_callsign} is not enabled."
+
     response.payload = {
         'operator': operator,
-        'motd': motd
+        'motd': motd,
+        'user': user_message
     }
 
     send_response(conn, response, req)

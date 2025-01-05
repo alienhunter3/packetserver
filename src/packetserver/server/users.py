@@ -11,23 +11,28 @@ import ZODB
 import logging
 import uuid
 from uuid import UUID
+from packetserver.common.util import email_valid
 
 class User(persistent.Persistent):
-    def __init__(self, username: str, enabled: bool = True, hidden: bool = False, bio: str = "", status: str = ""):
+    def __init__(self, username: str, enabled: bool = True, hidden: bool = False, bio: str = "", status: str = "",
+                 email: str = None, location: str = "", socials: list[str] = None):
         self._username = username.upper().strip()
         self.enabled = enabled
         self.hidden = hidden
         self.created_at = datetime.datetime.now(datetime.UTC)
         self.last_seen = self.created_at
+        self._email = ""
+        if email:
+            self.email = email
+        self._location = ""
+        self.location = location
+        self._socials = []
+        if socials:
+            self.socials = socials
         self._uuid = None
-        if len(bio) > 4000:
-            self._bio = bio[:4000]
-        else:
-            self._bio = bio
-        if len(status) > 300:
-            self._status = status[:300]
-        else:
-            self._status = status
+        self.bio = bio
+        self._status = ""
+        self.status = status
 
     def write_new(self, db_root: PersistentMapping):
         all_uuids = [db_root['users'][x].uuid for x in db_root['users']]
@@ -37,6 +42,47 @@ class User(persistent.Persistent):
         logging.debug(f"Creating new user account {self.username} - {self.uuid}")
         if self.username not in db_root['users']:
             db_root['users'][self.username] = self
+
+    @property
+    def location(self) -> str:
+        return self._location
+
+    @location.setter
+    def location(self, location: str):
+        if len(location) > 1000:
+            self._location = location[:1000]
+        else:
+            self._location = location
+
+    @property
+    def email(self) -> str:
+        return self._email
+
+    @email.setter
+    def email(self, email: str):
+        if email_valid(email.strip().lower()):
+            self._email = email.strip().lower()
+        else:
+            raise ValueError(f"Invalid e-mail given: {email}")
+
+    @property
+    def socials(self) -> list[str]:
+        return []
+
+    @socials.setter
+    def socials(self, socials: list[str]):
+        for social in socials:
+            if len(social) > 300:
+                social = social[:300]
+            self._socials.append(social)
+
+    def add_social(self, social: str):
+        if len(social) > 300:
+            social = social[:300]
+        self._socials.append(social)
+
+    def remove_social(self, social: str):
+        self.socials.remove(social)
 
     @property
     def uuid(self):
@@ -80,6 +126,14 @@ class User(persistent.Persistent):
             else:
                 return all_users[:limit]
 
+    @classmethod
+    def is_authorized(cls, username: str, db_root: PersistentMapping) -> bool:
+        user = User.get_user_by_username(username, db_root)
+        if user:
+            if user.enabled:
+                return True
+        return False
+
     def seen(self):
         self.last_seen = datetime.datetime.now(datetime.UTC)
 
@@ -114,9 +168,24 @@ class User(persistent.Persistent):
             "username": self.username,
             "status": self.status,
             "bio": self.bio,
+            "socials": self.socials,
+            "email": self.email,
+            "location": self.location,
             "last_seen": self.last_seen.isoformat(),
             "created_at": self.created_at.isoformat()
         }
+
+    def __repr__(self):
+        return f"<User: {self.username} - {self.uuid}>"
+
+def user_authorized(conn: PacketServerConnection, db: ZODB.DB) -> bool:
+    username = ax25.Address(conn.remote_callsign).call
+    logging.debug(f"Running authcheck for user {username}")
+    result = False
+    with db.transaction() as db:
+        result = User.is_authorized(username, db.root())
+        logging.debug(f"User is authorized? {result}")
+    return result
 
 def handle_user_get(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     sp = req.path.split("/")
@@ -161,6 +230,11 @@ def handle_user_update(req: Request, conn: PacketServerConnection, db: ZODB.DB):
 
 def user_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     logging.debug(f"{req} being processed by user_root_handler")
+    if not user_authorized(conn, db):
+        logging.debug(f"user {conn.remote_callsign} not authorized")
+        send_blank_response(conn, req, status_code=401)
+        return
+    logging.debug("user is authorized")
     if req.method is Request.Method.GET:
         handle_user_get(req, conn, db)
     else:
