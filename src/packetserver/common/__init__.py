@@ -14,6 +14,7 @@ class PacketServerConnection(Connection):
 
     connection_subscribers = []
     receive_subscribers = []
+    max_send_size = 2000
 
     def __init__(self, port, call_from, call_to, incoming=False):
         super().__init__(port, call_from, call_to, incoming=incoming)
@@ -62,7 +63,20 @@ class PacketServerConnection(Connection):
     def send_data(self, data: Union[bytes, bytearray]):
         logging.debug(f"sending data: {data}")
         self.connection_last_activity = datetime.datetime.now(datetime.UTC)
-        super().send_data(data)
+        if len(data) > self.max_send_size:
+            logging.debug(f"Large frame detected {len(data)} breaking it up into chunks")
+            index = 0
+            counter = 0
+            while index <= len(data):
+                logging.debug(f"Sending chunk {counter}")
+                if (len(data) - index) < self.max_send_size:
+                    super().send_data(data[index:])
+                    break
+                super().send_data(data[index:index + self.max_send_size])
+                index = index + self.max_send_size
+                counter = counter + 1
+        else:
+            super().send_data(data)
 
     @classmethod
     def query_accept(cls, port, call_from, call_to):
@@ -289,20 +303,27 @@ def send_response(conn: PacketServerConnection, response: Response, original_req
     if conn.state.name == "CONNECTED" and not conn.closing:
 
         # figure out compression setting based on request
+        logging.debug("Determining compression of response")
         comp = compression
-
+        logging.debug(f"Default comp: {comp}")
+        logging.debug(f"Original vars: {original_request.vars}")
         if 'C' in original_request.vars:
+            logging.debug(f"Detected compression header in original request: {original_request.vars['C']}")
             val = original_request.vars['C']
             for i in Message.CompressionType:
+                logging.debug(f"Checking type: {i}")
                 if str(val).strip().upper() == i.name:
                     comp = i
+                    logging.debug(f"matched compression with var to {comp}")
                     break
                 try:
                     if int(val) == i.value:
                         comp = i
+                        logging.debug(f"matched compression with var to {comp}")
                 except ValueError:
                     pass
         response.compression = comp
+        logging.debug(f"Final compression: {response.compression}")
 
         logging.debug(f"sending response: {response}, {response.compression}, {response.payload}")
         conn.send_data(response.pack())
