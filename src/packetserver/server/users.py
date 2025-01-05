@@ -3,6 +3,7 @@
 import ax25
 import persistent
 import persistent.list
+from persistent.list import PersistentList
 from persistent.mapping import PersistentMapping
 import datetime
 from typing import Self,Union,Optional
@@ -12,6 +13,7 @@ import logging
 import uuid
 from uuid import UUID
 from packetserver.common.util import email_valid
+from BTrees.OOBTree import TreeSet
 
 class User(persistent.Persistent):
     def __init__(self, username: str, enabled: bool = True, hidden: bool = False, bio: str = "", status: str = "",
@@ -33,6 +35,7 @@ class User(persistent.Persistent):
         self.bio = bio
         self._status = ""
         self.status = status
+        self._objects = TreeSet()
 
     def write_new(self, db_root: PersistentMapping):
         all_uuids = [db_root['users'][x].uuid for x in db_root['users']]
@@ -42,6 +45,21 @@ class User(persistent.Persistent):
         logging.debug(f"Creating new user account {self.username} - {self.uuid}")
         if self.username not in db_root['users']:
             db_root['users'][self.username] = self
+
+    @property
+    def object_uuids(self) -> list[UUID]:
+        return list(self._objects)
+
+    def remove_obj_uuid(self, obj: UUID):
+        self._objects.remove(obj)
+
+    def add_obj_uuid(self, obj: UUID):
+        self._objects.add(obj)
+
+    def user_has_obj(self, obj: UUID) -> bool:
+        if obj in self._objects:
+            return True
+        return False
 
     @property
     def location(self) -> str:

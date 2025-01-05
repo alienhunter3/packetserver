@@ -16,7 +16,7 @@ import time
 from msgpack.exceptions import OutOfData
 from typing import Callable, Self, Union
 from traceback import  format_exc
-
+from os import linesep
 
 def init_bulletins(root: PersistentMapping):
     if 'bulletins' not in root:
@@ -66,6 +66,9 @@ class Server:
             if 'SYSTEM' not in conn.root.users:
                 logging.debug("Creating system user for first time.")
                 User('SYSTEM', hidden=True, enabled=False).write_new(conn.root())
+            if 'objects' not in conn.root():
+                logging.debug("objects bucket missing, creating")
+                conn.root.objects = OOBTree()
             init_bulletins(conn.root())
         self.app = pe.app.Application()
         PacketServerConnection.receive_subscribers.append(lambda x: self.server_receiver(x))
@@ -170,6 +173,12 @@ class Server:
             self.zeo_stop = stop
             self.db = ZEO.DB(self.zeo_addr)
             logging.info(f"Starting ZEO server with address {self.zeo_addr}")
+            try:
+                zeo_address_file = str(self.home_dir.joinpath("zeo-address.txt"))
+                open(zeo_address_file, 'w').write(f"{self.zeo_addr[0]}:{self.zeo_addr[1]}{linesep}")
+                logging.info(f"Wrote ZEO server info to '{zeo_address_file}'")
+            except:
+                logging.warning(f"Couldn't write ZEO server info to '{zeo_address_file}'\n{format_exc()}")
         self.app.start(self.pe_server, self.pe_port)
         self.app.register_callsigns(self.callsign)
 
