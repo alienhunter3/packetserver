@@ -156,8 +156,8 @@ class Object(persistent.Persistent):
             "size_bytes": self.size,
             "binary": self.binary,
             "private": self.private,
-            "created_at": self.created_at,
-            "modified_at": self.modified_at,
+            "created_at": self.created_at.isoformat(),
+            "modified_at": self.modified_at.isoformat(),
             "includes_data": include_data,
             "data": data
         }
