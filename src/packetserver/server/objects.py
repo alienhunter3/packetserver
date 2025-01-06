@@ -145,9 +145,14 @@ class Object(persistent.Persistent):
         data = b''
         if include_data:
             data = self.data
+        if self.uuid:
+            uuid_bytes = self.uuid.bytes
+        else:
+            uuid_bytes = None
+
         return {
             "name": self.name,
-            "uuid_bytes": self.uuid.bytes,
+            "uuid_bytes": uuid_bytes,
             "size_bytes": self.size,
             "binary": self.binary,
             "private": self.private,
@@ -277,7 +282,7 @@ def handle_get_no_path(req: Request, conn: PacketServerConnection, db: ZODB.DB):
                         response.payload = obj.to_dict(include_data=False)
                         response.status_code = 200
         else:
-            uuids = User.object_uuids
+            uuids = user.object_uuids
             objs = []
             for i in uuids:
                 obj = Object.get_object_by_uuid(i, db.root())
