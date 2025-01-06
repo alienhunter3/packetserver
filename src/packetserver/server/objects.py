@@ -298,8 +298,18 @@ def handle_object_get(req: Request, conn: PacketServerConnection, db: ZODB.DB):
 
 
 def handle_object_post(req: Request, conn: PacketServerConnection, db: ZODB.DB):
-    # TODO
-    pass
+    if type(req.payload) is not dict:
+        send_blank_response(conn, req, 400, payload="object payload must be 'dict'")
+
+    try:
+        obj = Object.from_dict(req.payload)
+    except:
+        send_blank_response(conn, req, status_code=400)
+        return
+
+    obj.write_new(db)
+    username = ax25.Address(conn.remote_callsign).call.upper().strip()
+    obj.chown(username, db)
 
 def object_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     logging.debug(f"{req} being processed by user_root_handler")
