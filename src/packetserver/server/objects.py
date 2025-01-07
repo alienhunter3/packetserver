@@ -15,6 +15,7 @@ from uuid import UUID
 from packetserver.server.users import User, user_authorized
 from collections import namedtuple
 from traceback import format_exc
+import base64
 
 class Object(persistent.Persistent):
     def __init__(self, name: str = "", data: Union[bytes,bytearray,str] = None):
@@ -195,6 +196,9 @@ class Object(persistent.Persistent):
             else:
                 return False
 
+    def __repr__(self):
+        return f"<Object: '{self.name}', {self.size}b, {self.uuid}>"
+
 DisplayOptions = namedtuple('DisplayOptions', ['get_data', 'limit', 'sort_by', 'reverse', 'search'])
 
 def parse_display_options(req: Request) -> DisplayOptions:
@@ -318,7 +322,80 @@ def handle_object_post(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     obj.write_new(db)
     username = ax25.Address(conn.remote_callsign).call.upper().strip()
     obj.chown(username, db)
-    send_blank_response(conn, req, 201, str(obj.uuid))
+    send_blank_response(conn, req, status_code=201, payload=str(obj.uuid))
+
+def handle_object_update(req: Request, conn: PacketServerConnection, db: ZODB.DB):
+    username = ax25.Address(conn.remote_callsign).call.upper().strip()
+    if type(req.payload) is not dict:
+        send_blank_response(conn, req, status_code=400)
+        return
+    if 'uuid' in req.vars:
+        uid = req.vars['uuid']
+        if type(uid) is bytes:
+            u_obj = UUID(bytes=uid)
+        elif type(uid) is int:
+            u_obj = UUID(int=uid)
+        else:
+            try:
+                u_obj = UUID(str(uid))
+            except ValueError:
+                send_blank_response(conn, req, status_code=400)
+        new_name = req.payload.get("name")
+        new_data = req.payload.get("data")
+        if new_data:
+            if type(new_data) not in (bytes, bytearray, str):
+                send_blank_response(conn, req, status_code=400)
+                return
+        with db.transaction() as db:
+            obj = Object.get_object_by_uuid(uid, db.root())
+            user = User.get_user_by_username(username, db.root())
+            if user.uuid != obj.owner:
+                send_blank_response(conn, req, status_code=401)
+                return
+            if obj is None:
+                send_blank_response(conn, req, status_code=404)
+                return
+            if new_name:
+                obj.name = new_name
+            if new_data:
+                obj.data = new_data
+            send_blank_response(conn, req, status_code=200)
+    else:
+        send_blank_response(conn, req, status_code=400)
+        return
+
+def handle_object_delete(req: Request, conn: PacketServerConnection, db: ZODB.DB):
+    username = ax25.Address(conn.remote_callsign).call.upper().strip()
+    if 'uuid' in req.vars:
+        uid = req.vars['uuid']
+        if type(uid) is bytes:
+            u_obj = UUID(bytes=uid)
+        elif type(uid) is int:
+            u_obj = UUID(int=uid)
+        else:
+            try:
+                u_obj = UUID(str(uid))
+            except ValueError:
+                send_blank_response(conn, req, status_code=400)
+        with db.transaction() as db:
+            obj = Object.get_object_by_uuid(uid, db.root())
+            user = User.get_user_by_username(username, db.root())
+            if user.uuid != obj.owner:
+                send_blank_response(conn, req, status_code=401)
+                return
+            if obj is None:
+                send_blank_response(conn, req, status_code=404)
+                return
+            try:
+                user.remove_obj_uuid(uid)
+                del db.root.objects[uid]
+            except:
+                send_blank_response(conn, req, status_code=500)
+                logging.error(f"Error handling delete:\n{format_exc()}")
+            send_blank_response(conn, req, status_code=200)
+    else:
+        send_blank_response(conn, req, status_code=400)
+        return
 
 def object_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     logging.debug(f"{req} being processed by user_root_handler")
@@ -331,5 +408,9 @@ def object_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB)
         handle_object_get(req, conn, db)
     elif req.method is Request.Method.POST:
         handle_object_post(req, conn, db)
+    elif req.method is Request.Method.UPDATE:
+        handle_object_update(req, conn, db)
+    elif req.method is Request.Method.DELETE:
+        handle_object_delete(req, conn, db)
     else:
         send_blank_response(conn, req, status_code=404)
