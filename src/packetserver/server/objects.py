@@ -14,6 +14,7 @@ import uuid
 from uuid import UUID
 from packetserver.server.users import User, user_authorized
 from collections import namedtuple
+from traceback import format_exc
 
 class Object(persistent.Persistent):
     def __init__(self, name: str = "", data: Union[bytes,bytearray,str] = None):
@@ -138,7 +139,7 @@ class Object(persistent.Persistent):
             while self.uuid in db.root.objects:
                 self._uuid = uuid.uuid4()
             db.root.objects[self.uuid] = self
-        self.touch()
+            self.touch()
         return self.uuid
 
     def to_dict(self, include_data: bool = True) -> dict:
@@ -165,7 +166,8 @@ class Object(persistent.Persistent):
     @classmethod
     def from_dict(cls, obj: dict) -> Self:
         o = Object(name=obj['name'])
-        o._uuid = UUID(bytes=obj['uuid_bytes'])
+        if obj['uuid_bytes']:
+            o._uuid = UUID(bytes=obj['uuid_bytes'])
         o.private = obj['private']
         o.data = obj['data']
         o._binary = obj['binary']
@@ -309,12 +311,14 @@ def handle_object_post(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     try:
         obj = Object.from_dict(req.payload)
     except:
+        logging.debug(f"Error parsing new object:\n{format_exc()}")
         send_blank_response(conn, req, status_code=400)
         return
 
     obj.write_new(db)
     username = ax25.Address(conn.remote_callsign).call.upper().strip()
     obj.chown(username, db)
+    send_blank_response(conn, req, 201, str(obj.uuid))
 
 def object_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     logging.debug(f"{req} being processed by user_root_handler")
