@@ -199,7 +199,7 @@ def parse_display_options(req: Request) -> DisplayOptions:
     except:
         limit = None
 
-    d = req.vars.get('fetch')
+    d = req.vars.get('fetch_text')
     if type(d) is str:
         d.lower().strip()
     if d in [1, 'y', True, 'yes', 'true', 't']:
