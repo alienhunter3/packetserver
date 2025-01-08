@@ -7,6 +7,7 @@ import datetime
 from typing import Self,Union,Optional,Iterable,Sequence
 from packetserver.common import PacketServerConnection, Request, Response, send_response, send_blank_response
 from packetserver.common import Message as PacketMessage
+from packetserver.common.constants import yes_values, no_values
 import ZODB
 import logging
 import uuid
@@ -190,9 +191,18 @@ class Message(persistent.Persistent):
         return send_counter, failed
 
 DisplayOptions = namedtuple('DisplayOptions', ['get_text', 'limit', 'sort_by', 'reverse', 'search',
-                                               'get_attachments', 'sent_unsent'])
+                                               'get_attachments', 'sent_received_all'])
 
 def parse_display_options(req: Request) -> DisplayOptions:
+    sent_received_all = "received"
+    d = req.vars.get("source")
+    if type(d) is str:
+        d.lower().strip()
+    if d == "sent":
+        sent_received_all = "sent"
+    elif d == "all":
+        sent_received_all = "all"
+
     limit = req.vars.get('limit')
     try:
         limit = int(limit)
@@ -202,27 +212,35 @@ def parse_display_options(req: Request) -> DisplayOptions:
     d = req.vars.get('fetch_text')
     if type(d) is str:
         d.lower().strip()
-    if d in [1, 'y', True, 'yes', 'true', 't']:
-        get_data = True
+    if d in no_values:
+        get_text = False
     else:
-        get_data = False
+        get_text = True
+
+    d = req.vars.get('fetch_attachments')
+    if type(d) is str:
+        d.lower().strip()
+    if d in yes_values:
+        get_attachments = True
+    else:
+        get_attachments = False
 
     r = req.vars.get('reverse')
     if type(r) is str:
         r.lower().strip()
-    if r in [1, 'y', True, 'yes', 'true', 't']:
+    if r in yes_values:
         reverse = True
     else:
         reverse = False
 
     sort = req.vars.get('sort')
-    sort_by = "name"
+    sort_by = "date"
     if type(sort) is str:
         sort = sort.lower().strip()
-        if sort == "date":
-            sort_by = "date"
-        elif sort == "size":
-            sort_by = "size"
+        if sort == "from":
+            sort_by = "from"
+        elif sort == "to":
+            sort_by = "to"
 
     s = req.vars.get('search')
     search = None
@@ -231,11 +249,12 @@ def parse_display_options(req: Request) -> DisplayOptions:
     if s:
         search = str(s)
 
-    return DisplayOptions(get_data, limit, sort_by, reverse, search)
+    return DisplayOptions(get_text, limit, sort_by, reverse, search, get_attachments, sent_receive_all)
 
 
 def handle_message_get(req: Request, conn: PacketServerConnection, db: ZODB.DB):
-    pass
+    opts = parse_display_options(req)
+    
 
 def object_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     logging.debug(f"{req} being processed by user_root_handler")
@@ -248,15 +267,6 @@ def object_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB)
         handle_message_get(req, conn, db)
     else:
         send_blank_response(conn, req, status_code=404)
-
-
-
-
-
-
-
-
-
 
 
 
