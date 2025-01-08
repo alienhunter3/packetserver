@@ -63,6 +63,9 @@ class Server:
             if 'users' not in conn.root():
                 logging.debug("users missing, creating bucket")
                 conn.root.users = PersistentMapping()
+            if 'messages' not in conn.root():
+                logging.debug("messages container missing, creating bucket")
+                conn.root.users = PersistentMapping()
             if 'SYSTEM' not in conn.root.users:
                 logging.debug("Creating system user for first time.")
                 User('SYSTEM', hidden=True, enabled=False).write_new(conn.root())
