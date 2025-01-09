@@ -93,17 +93,21 @@ class Object(persistent.Persistent):
             self.touch()
 
     def chown(self, username: str, db: ZODB.DB):
+        logging.debug(f"chowning object {self} to user {username}")
         un = username.strip().upper()
         old_owner_uuid = self._owner
         with db.transaction() as db:
             user = User.get_user_by_username(username, db.root())
             old_owner = User.get_user_by_uuid(old_owner_uuid, db.root())
             if user:
+                logging.debug(f"new owner user exists: {user}")
                 db.root.objects[self.uuid].owner = user.uuid
-                user.add_obj_uuid(self.uuid)
                 if old_owner_uuid:
                     if old_owner:
                         old_owner.remove_obj_uuid(self.uuid)
+                logging.debug("adding object uuid to user objects set")
+                user.add_obj_uuid(self.uuid)
+                logging.debug(f"user objects now: {user.object_uuids}")
             else:
                 raise KeyError(f"User '{un}' not found.")
 
@@ -264,6 +268,7 @@ def object_display_filter(source: list[Object], opts: DisplayOptions) -> list[di
 
 def handle_get_no_path(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     opts = parse_display_options(req)
+    logging.debug(f"Handling a GET 'object' request: {opts}")
     response = Response.blank()
     response.status_code = 404
     username = ax25.Address(conn.remote_callsign).call.upper().strip()
@@ -273,6 +278,7 @@ def handle_get_no_path(req: Request, conn: PacketServerConnection, db: ZODB.DB):
             send_blank_response(conn, req, status_code=500, payload="Unknown user account problem")
             return
         if 'uuid' in req.vars:
+            logging.debug(f"uuid req.var: {req.vars['uuid']}")
             uid = req.vars['uuid']
             if type(uid) is bytes:
                 obj = Object.get_object_by_uuid(UUID(bytes=uid), db.root())
@@ -290,14 +296,20 @@ def handle_get_no_path(req: Request, conn: PacketServerConnection, db: ZODB.DB):
         else:
             uuids = user.object_uuids
             objs = []
+            logging.debug(f"No uuid var, all user object_uuids: {uuids}")
             for i in uuids:
                 obj = Object.get_object_by_uuid(i, db.root())
+                logging.debug(f"Checking {obj}")
                 if not obj.private:
+                    logging.debug("object not private")
                     objs.append(obj)
                 else:
+                    logging.debug("object private")
                     if obj.uuid == user.uuid:
+                        logging.debug("user uuid matches object uuid")
                         objs.append(obj)
             response.payload = object_display_filter(objs, opts)
+            logging.debug(f"object payload: {response.payload}")
             response.status_code = 200
 
         send_response(conn, response, req)
@@ -317,11 +329,15 @@ def handle_object_post(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     except:
         logging.debug(f"Error parsing new object:\n{format_exc()}")
         send_blank_response(conn, req, status_code=400)
-        return
-
+        retur
+    logging.debug(f"writing new object: {obj}")
     obj.write_new(db)
+    with db.transaction() as db_conn:
+        logging.debug(f"looking up new object")
+        new_obj = Object.get_object_by_uuid(obj.uuid, db_conn.root())
     username = ax25.Address(conn.remote_callsign).call.upper().strip()
-    obj.chown(username, db)
+    logging.debug("chowning new object")
+    new_obj.chown(username, db)
     send_blank_response(conn, req, status_code=201, payload=str(obj.uuid))
 
 def handle_object_update(req: Request, conn: PacketServerConnection, db: ZODB.DB):
