@@ -1,5 +1,6 @@
 import pe.app
-from packetserver.common import Response, Message, Request, PacketServerConnection, send_response, send_blank_response
+from packetserver.common import Response, Message, Request, PacketServerConnection, send_response, send_blank_response, \
+    DummyPacketServerConnection
 from packetserver.server.constants import default_server_config
 from packetserver.server.users import User
 from copy import deepcopy
@@ -165,7 +166,7 @@ class Server:
     def register_path_handler(self, path_root: str, fn: Callable):
         self.handlers[path_root.strip().lower()] = fn
 
-    def start(self):
+    def start_db(self):
         if not self.zeo:
             self.storage = ZODB.FileStorage.FileStorage(self.data_file)
             self.db = ZODB.DB(self.storage)
@@ -182,19 +183,46 @@ class Server:
                 logging.info(f"Wrote ZEO server info to '{zeo_address_file}'")
             except:
                 logging.warning(f"Couldn't write ZEO server info to '{zeo_address_file}'\n{format_exc()}")
+
+    def start(self):
+        self.start_db()
         self.app.start(self.pe_server, self.pe_port)
         self.app.register_callsigns(self.callsign)
 
     def exit_gracefully(self, signum, frame):
         self.stop()
 
-    def stop(self):
-        cm = self.app._engine._active_handler._handlers[1]._connection_map
-        for key in cm._connections.keys():
-            cm._connections[key].close()
-        self.app.stop()
+    def stop_db(self):
         self.storage.close()
         self.db.close()
         if self.zeo:
             logging.info("Stopping ZEO.")
             self.zeo_stop()
+
+    def stop(self):
+        cm = self.app._engine._active_handler._handlers[1]._connection_map
+        for key in cm._connections.keys():
+            cm._connections[key].close()
+        self.app.stop()
+        self.stop_db()
+
+
+class TestServer(Server):
+    def __init__(self, server_callsign: str, data_dir: str = None, zeo: bool = True):
+        super().__init__('localhost', 8000, server_callsign, data_dir=data_dir, zeo=zeo)
+        self._data_pid = 1
+
+    def start(self):
+        self.start_db()
+
+    def stop(self):
+        self.stop_db()
+
+    def data_pid(self) -> int:
+        old = self._data_pid
+        self._data_pid = self._data_pid + 1
+        return old
+
+    def send_test_data(self, conn: DummyPacketServerConnection, data: bytearray):
+        conn.data_received(self.data_pid(), data)
+        self.server_receiver(conn)

@@ -1,4 +1,4 @@
-from pe.connect import Connection
+from pe.connect import Connection, ConnectionState
 from threading import Lock
 from msgpack import Unpacker
 from msgpack import packb, unpackb
@@ -81,6 +81,22 @@ class PacketServerConnection(Connection):
     @classmethod
     def query_accept(cls, port, call_from, call_to):
         return True
+
+
+class DummyPacketServerConnection(PacketServerConnection):
+
+    def __init__(self, call_from: str, call_to: str, incoming=False):
+        super().__init__(0, call_from, call_to, incoming=incoming)
+        self.sent_data = Unpacker()
+        self._state = ConnectionState.CONNECTED
+
+    @property
+    def state(self):
+        return self._state
+        
+    def send_data(self, data: Union[bytes, bytearray]):
+        self.sent_data.feed(data)
+        logging.debug(f"Sender added {data} to self.sent_data.feed")
 
 
 class Message:
@@ -328,6 +344,8 @@ def send_response(conn: PacketServerConnection, response: Response, original_req
         logging.debug(f"sending response: {response}, {response.compression}, {response.payload}")
         conn.send_data(response.pack())
         logging.debug("response sent successfully")
+    else:
+        logging.warning(f"Attempted to send data, but connection state is {conn.state.name}")
 
 def send_blank_response(conn: PacketServerConnection, original_request: Request, status_code: int = 200,
                   payload: Union[bytes, bytearray, str, dict] = ""):

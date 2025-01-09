@@ -21,19 +21,21 @@ def handle_root_get(req: Request, conn: PacketServerConnection,
             motd = storage.root.config['motd']
         if 'operator' in storage.root.config:
             operator = storage.root.config['operator']
-
+    logging.debug(f"Root handler retrieved config. {operator} - {motd}")
+    logging.debug("Running user_authorized")
     if user_authorized(conn, db):
         user_message = f"User {conn.remote_callsign} is enabled."
     else:
         user_message = f"User {conn.remote_callsign} is not enabled."
-
+    logging.debug(f"User authorized: {user_message}")
     response.payload = {
         'operator': operator,
         'motd': motd,
         'user': user_message
     }
-
+    logging.debug(f"Sending response {response}")
     send_response(conn, response, req)
+    logging.debug("Sent reesponse.")
 
 def root_root_handler(req: Request, conn: PacketServerConnection,
                     db: ZODB.DB):
