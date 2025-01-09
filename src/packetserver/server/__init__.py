@@ -54,6 +54,7 @@ class Server:
         self.storage = ZODB.FileStorage.FileStorage(self.data_file)
         self.db = ZODB.DB(self.storage)
         with self.db.transaction() as conn:
+            logging.debug(f"checking for datastructures: conn.root.keys(): {list(conn.root().keys())}")
             if 'config' not in conn.root():
                 logging.debug("no config, writing blank default config")
                 conn.root.config = PersistentMapping(deepcopy(default_server_config))
@@ -66,7 +67,7 @@ class Server:
                 conn.root.users = PersistentMapping()
             if 'messages' not in conn.root():
                 logging.debug("messages container missing, creating bucket")
-                conn.root.users = PersistentMapping()
+                conn.root.messages = PersistentMapping()
             if 'SYSTEM' not in conn.root.users:
                 logging.debug("Creating system user for first time.")
                 User('SYSTEM', hidden=True, enabled=False).write_new(conn.root())
@@ -103,11 +104,14 @@ class Server:
                     blacklisted = True
 
             # user object check
+            logging.debug(f"checking user existence for {base}")
+            logging.debug(f"users in db right now: {list(storage.root.users.keys())}")
             if base in storage.root.users:
                 logging.debug(f"User {base} exists in db.")
                 u = storage.root.users[base]
                 u.seen()
             else:
+                logging.debug(f"User {base} doesn't exist in db")
                 logging.info(f"Creating new user {base}")
                 u = User(base.upper().strip())
                 u.write_new(storage.root())

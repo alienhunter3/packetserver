@@ -104,8 +104,10 @@ class Object(persistent.Persistent):
                 db.root.objects[self.uuid].owner = user.uuid
                 if old_owner_uuid:
                     if old_owner:
+                        logging.debug(f"The object has an old owner user: {old_owner}")
                         old_owner.remove_obj_uuid(self.uuid)
-                logging.debug("adding object uuid to user objects set")
+                logging.debug(f"adding this object uuid to user objects set ({self.uuid})")
+                logging.debug(f"user {user} objects before: {user.object_uuids}")
                 user.add_obj_uuid(self.uuid)
                 logging.debug(f"user objects now: {user.object_uuids}")
             else:
@@ -329,15 +331,14 @@ def handle_object_post(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     except:
         logging.debug(f"Error parsing new object:\n{format_exc()}")
         send_blank_response(conn, req, status_code=400)
-        retur
+        return
+    username = ax25.Address(conn.remote_callsign).call.upper().strip()
+    with db.transaction() as db_conn:
+        logging.debug(f"User {username}'s objects: {db_conn.root.users[username].object_uuids}")
     logging.debug(f"writing new object: {obj}")
     obj.write_new(db)
-    with db.transaction() as db_conn:
-        logging.debug(f"looking up new object")
-        new_obj = Object.get_object_by_uuid(obj.uuid, db_conn.root())
-    username = ax25.Address(conn.remote_callsign).call.upper().strip()
     logging.debug("chowning new object")
-    new_obj.chown(username, db)
+    obj.chown(username, db)
     send_blank_response(conn, req, status_code=201, payload=str(obj.uuid))
 
 def handle_object_update(req: Request, conn: PacketServerConnection, db: ZODB.DB):
