@@ -83,6 +83,16 @@ class Attachment:
     def copy(self):
         return Attachment(self.name, self.data)
 
+    def to_dict(self, include_data: bool = True):
+        d = {
+                "name": self.name,
+                "binary": self.binary,
+                "size_bytes": self.size,
+            }
+        if include_data:
+            d['data'] = self.data
+        return d
+
 class ObjectAttachment(Attachment):
     def __init__(self, name: str, obj: Object):
         self.object = obj
@@ -148,6 +158,23 @@ class Message(persistent.Persistent):
     def __repr__(self):
         return f"<Message: ID: {self.msg_id}, Sent: {self.msg_delivered}>"
 
+    def to_dict(self, get_text: bool = True, get_attachments: bool = True) -> dict:
+        attachments = []
+        for attachment in self.attachments:
+            attachments.append(attachment.to_dict(include_data=get_attachments))
+        d = {
+                "attachments": attachments,
+                "to": self.msg_to,
+                "from": self.msg_from,
+                "id": self.msg_id,
+                "sent_at": self.sent_at.isoformat(),
+                "text": ""
+            }
+        if get_text:
+            d['text'] = self.text
+        
+        return d
+
     def send(self, db: ZODB.DB) -> tuple:
         if self.msg_delivered:
             raise MessageAlreadySentError("Cannot send a private message that has already been sent.")
@@ -207,7 +234,7 @@ def parse_display_options(req: Request) -> DisplayOptions:
     try:
         limit = int(limit)
     except:
-        limit = None
+        limit = 10
 
     d = req.vars.get('fetch_text')
     if type(d) is str:
@@ -254,6 +281,9 @@ def parse_display_options(req: Request) -> DisplayOptions:
 
 def handle_message_get(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     opts = parse_display_options(req)
+    msg_return = []
+    with db.transaction() as db:
+        mb = db.root.messages.get(    
     
 
 def object_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
