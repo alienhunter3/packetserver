@@ -281,9 +281,22 @@ def parse_display_options(req: Request) -> DisplayOptions:
 
 def handle_message_get(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     opts = parse_display_options(req)
+    username = ax25.Address(conn.remote_callsign).call.upper().strip() 
     msg_return = []
     with db.transaction() as db:
-        mb = db.root.messages.get(    
+        mailbox_create(username, db.root())
+        mb = db.root.messages['username']
+        messages = []
+        if opts.reverse:
+            for i in range(1,len(mb)+1):
+                messages.append(mb[len(mb) - 1])
+        else:
+            for i in range(0,len(mb)):
+                messages.append(mb[i])
+        for msg in messages:
+            # do other filtering.
+            
+                
     
 
 def object_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
