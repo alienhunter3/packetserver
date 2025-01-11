@@ -120,7 +120,7 @@ class MessageAlreadySentError(Exception):
     pass
 
 class Message(persistent.Persistent):
-    def __init__(self, text: str, msg_to: Optional[Iterable[str],str]= None, msg_from: Optional[str] = None,
+    def __init__(self, text: str, msg_to: Optional[Iterable[str]]= None, msg_from: Optional[str] = None,
                  attachments: Optional[Iterable[Attachment]] = None):
         self.retrieved = False
         self.sent_at = datetime.datetime.now(datetime.UTC)
@@ -166,7 +166,7 @@ class Message(persistent.Persistent):
                 "attachments": attachments,
                 "to": self.msg_to,
                 "from": self.msg_from,
-                "id": self.msg_id,
+                "id": str(self.msg_id),
                 "sent_at": self.sent_at.isoformat(),
                 "text": ""
             }
@@ -174,6 +174,10 @@ class Message(persistent.Persistent):
             d['text'] = self.text
         
         return d
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Self:
+        return Message(data['text'],msg_to=data.get('to'), attachments=data.get("attachments"))
 
     def send(self, db: ZODB.DB) -> tuple:
         if self.msg_delivered:
@@ -221,6 +225,7 @@ DisplayOptions = namedtuple('DisplayOptions', ['get_text', 'limit', 'sort_by', '
                                                'get_attachments', 'sent_received_all'])
 
 def parse_display_options(req: Request) -> DisplayOptions:
+    logging.debug(f"Parsing request vars for message get: {req.vars}")
     sent_received_all = "received"
     d = req.vars.get("source")
     if type(d) is str:
@@ -234,7 +239,7 @@ def parse_display_options(req: Request) -> DisplayOptions:
     try:
         limit = int(limit)
     except:
-        limit = 10
+        limit = None
 
     d = req.vars.get('fetch_text')
     if type(d) is str:
@@ -245,12 +250,15 @@ def parse_display_options(req: Request) -> DisplayOptions:
         get_text = True
 
     d = req.vars.get('fetch_attachments')
+    logging.debug(f"Parsing fetch_attachment var: {d}")
     if type(d) is str:
         d.lower().strip()
     if d in yes_values:
+        logging.debug("fetch_attachment is yes")
         get_attachments = True
     else:
         get_attachments = False
+        logging.debug("fetch_attachment is no")
 
     r = req.vars.get('reverse')
     if type(r) is str:
@@ -274,9 +282,9 @@ def parse_display_options(req: Request) -> DisplayOptions:
     if type(s) is str:
        s = s.lower()
     if s:
-        search = str(s)
+        search = str(s).lower()
 
-    return DisplayOptions(get_text, limit, sort_by, reverse, search, get_attachments, sent_receive_all)
+    return DisplayOptions(get_text, limit, sort_by, reverse, search, get_attachments, sent_received_all)
 
 
 def handle_message_get(req: Request, conn: PacketServerConnection, db: ZODB.DB):
@@ -285,21 +293,52 @@ def handle_message_get(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     msg_return = []
     with db.transaction() as db:
         mailbox_create(username, db.root())
-        mb = db.root.messages['username']
-        messages = []
-        if opts.reverse:
-            for i in range(1,len(mb)+1):
-                messages.append(mb[len(mb) - 1])
+        mb = db.root.messages[username]
+        if opts.search:
+            messages = [msg for msg in mb if (opts.search in msg.text.lower()) or (opts.search in msg.msg_to[0].lower())
+                        or (opts.search in msg.msg_from.lower())]
         else:
-            for i in range(0,len(mb)):
-                messages.append(mb[i])
-        for msg in messages:
-            # do other filtering.
-            
-                
-    
+            messages = [msg for msg in mb]
 
-def object_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
+        if opts.sort_by == "from":
+            messages.sort(key=lambda x: x.msg_from, reverse=opts.reverse)
+        elif opts.sort_by == "to":
+            messages.sort(key=lambda x: x.msg_to, reverse=opts.reverse)
+        else:
+            messages.sort(key=lambda x: x.sent_at, reverse=opts.reverse)
+
+        for i in range(0, len(messages)):
+            if opts.limit and (len(msg_return) >= opts.limit):
+                break
+
+            msg = messages[i]
+            msg.retrieved = True
+            msg_return.append(msg.to_dict(get_text=opts.get_text, get_attachments=opts.get_attachments))
+
+    response = Response.blank()
+    response.status_code = 200
+    response.payload = msg_return
+    send_response(conn, response, req)
+
+def handle_message_post(req: Request, conn: PacketServerConnection, db: ZODB.DB):
+    username = ax25.Address(conn.remote_callsign).call.upper().strip()
+    try:
+        msg = Message.from_dict(req.payload)
+    except:
+        send_blank_response(conn, req, status_code=400)
+        logging.warning(f"User '{username}' attempted to post message with invalid payload: {req.payload}")
+        return
+    msg.msg_from = username
+    try:
+        send_counter, failed = msg.send(db)
+    except:
+        send_blank_response(conn, req, status_code=500)
+        logging.error(f"Error while attempting to send message:\n{format_exc()}")
+        return
+
+    send_blank_response(conn, req, status_code=201, payload={"successes": send_counter, "failed": failed})
+
+def message_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     logging.debug(f"{req} being processed by user_root_handler")
     if not user_authorized(conn, db):
         logging.debug(f"user {conn.remote_callsign} not authorized")
@@ -308,6 +347,8 @@ def object_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB)
     logging.debug("user is authorized")
     if req.method is Request.Method.GET:
         handle_message_get(req, conn, db)
+    if req.method is Request.Method.POST:
+        handle_message_post(req, conn, db)
     else:
         send_blank_response(conn, req, status_code=404)
 

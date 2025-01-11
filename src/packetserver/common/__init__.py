@@ -165,7 +165,7 @@ class Message:
     def payload(self):
         if 'd' in self.data:
             pl = self.data['d']
-            if type(pl) in (dict, str, bytes):
+            if type(pl) in (dict, str, bytes, list):
                 return pl
             else:
                 return str(pl)
@@ -173,11 +173,15 @@ class Message:
             return ""
 
     @payload.setter
-    def payload(self, payload: Union[str, bytes, dict]):
-        if type(payload) in (str, bytes, dict):
+    def payload(self, payload: Union[str, bytes, dict, list]):
+        logging.debug(f"Setting a message payload: {type(payload)}: {payload}")
+        if type(payload) in (str, bytes, dict, list):
+            logging.debug(f"Payload type is {type(payload)}, conversion to string unnecessary")
             self.data['d'] = payload
         else:
+            logging.debug("payload type is not in (str, bytes, dict, list); converting to string")
             self.data['d'] = str(payload)
+        logging.debug(f"Final payload is: {type(payload)}: {payload}")
 
     @classmethod
     def partial_unpack(cls, msg: dict) -> Self:

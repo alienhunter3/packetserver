@@ -5,6 +5,7 @@ from packetserver.common import Message, Request, Response, PacketServerConnecti
 from .bulletin import bulletin_root_handler
 from .users import user_root_handler, user_authorized
 from .objects import object_root_handler
+from .messages import message_root_handler
 import logging
 from typing import Union
 import ZODB
@@ -50,7 +51,8 @@ standard_handlers = {
     "": root_root_handler,
     "bulletin": bulletin_root_handler,
     "user": user_root_handler,
-    "object": object_root_handler
+    "object": object_root_handler,
+    "message": message_root_handler
 }
 
 

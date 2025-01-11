@@ -36,6 +36,7 @@ class Server:
         self.zeo_addr = None
         self.zeo_stop = None
         self.zeo = zeo
+        self.started = False
         if data_dir:
             data_path = Path(data_dir)
         else:
@@ -170,6 +171,13 @@ class Server:
     def register_path_handler(self, path_root: str, fn: Callable):
         self.handlers[path_root.strip().lower()] = fn
 
+    def server_worker(self):
+        """When called, do things. Should get called every so often."""
+        if not self.started:
+            return
+        # Add things to do here:
+        pass
+
     def start_db(self):
         if not self.zeo:
             self.storage = ZODB.FileStorage.FileStorage(self.data_file)
@@ -192,6 +200,11 @@ class Server:
         self.start_db()
         self.app.start(self.pe_server, self.pe_port)
         self.app.register_callsigns(self.callsign)
+        self.started = True
+        while self.started:
+            self.server_worker()
+            time.sleep(5)
+
 
     def exit_gracefully(self, signum, frame):
         self.stop()
