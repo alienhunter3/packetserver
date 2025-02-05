@@ -8,6 +8,7 @@ from typing import Self,Union,Optional,Iterable,Sequence
 from packetserver.common import PacketServerConnection, Request, Response, send_response, send_blank_response
 from packetserver.common import Message as PacketMessage
 from packetserver.common.constants import yes_values, no_values
+from packetserver.common.util import from_date_digits, to_date_digits
 import ZODB
 import logging
 import uuid
@@ -18,7 +19,9 @@ from BTrees.OOBTree import TreeSet
 from packetserver.server.users import User, user_authorized
 from traceback import format_exc
 from collections import namedtuple
+import re
 
+since_regex = '''^message\/since\/(\d+)$'''
 
 def mailbox_create(username: str, db_root: PersistentMapping):
     un = username.upper().strip()
@@ -82,6 +85,12 @@ class Attachment:
 
     def copy(self):
         return Attachment(self.name, self.data)
+
+    @classmethod
+    def from_dict(cls, attachment: dict):
+        name = attachment.get("name")
+        data = attachment.get("data")
+        return Attachment(name, data)
 
     def to_dict(self, include_data: bool = True):
         d = {
@@ -150,7 +159,11 @@ class Message(persistent.Persistent):
         if attachments:
             attch = []
             for i in attachments:
-                if not isinstance(i,Attachment):
+                if type(i) is Attachment:
+                    attch.append(i)
+                elif type(i) is dict:
+                    attch.append(Attachment.from_dict(i))
+                elif not isinstance(i,Attachment):
                     attch.append(Attachment("",str(i)))
                 else:
                     attch.append(i)
@@ -286,8 +299,57 @@ def parse_display_options(req: Request) -> DisplayOptions:
 
     return DisplayOptions(get_text, limit, sort_by, reverse, search, get_attachments, sent_received_all)
 
+def handle_messages_since(req: Request, conn: PacketServerConnection, db: ZODB.DB):
+    if req.method is not Request.Method.GET:
+        send_blank_response(conn, req, 400, "method not implemented")
+        logging.warning(f"Received req with wrong message for path {req.path}.")
+        return
+    try:
+        since_date = from_date_digits(req.path.split("/")[2])
+    except ValueError as v:
+        send_blank_response(conn, req, 400, "invalid date string")
+        return
+    except:
+        send_blank_response(conn, req, 500, "unknown error")
+        logging.error(f"Unhandled exception: {format_exc()}")
+        return
+    opts = parse_display_options(req)
+    username = ax25.Address(conn.remote_callsign).call.upper().strip()
+    msg_return = []
+    with db.transaction() as db:
+        mailbox_create(username, db.root())
+        mb = db.root.messages[username]
+        new_mb = [msg for msg in mb if msg.sent_at >= since_date]
+        if opts.search:
+            messages = [msg for msg in new_mb if (opts.search in msg.text.lower()) or (opts.search in msg.msg_to[0].lower())
+                        or (opts.search in msg.msg_from.lower())]
+        else:
+            messages = [msg for msg in mb]
+
+        if opts.sort_by == "from":
+            messages.sort(key=lambda x: x.msg_from, reverse=opts.reverse)
+        elif opts.sort_by == "to":
+            messages.sort(key=lambda x: x.msg_to, reverse=opts.reverse)
+        else:
+            messages.sort(key=lambda x: x.sent_at, reverse=opts.reverse)
+
+        for i in range(0, len(messages)):
+            if opts.limit and (len(msg_return) >= opts.limit):
+                break
+
+            msg = messages[i]
+            msg.retrieved = True
+            msg_return.append(msg.to_dict(get_text=opts.get_text, get_attachments=opts.get_attachments))
+
+    response = Response.blank()
+    response.status_code = 200
+    response.payload = msg_return
+    send_response(conn, response, req)
+
 
 def handle_message_get(req: Request, conn: PacketServerConnection, db: ZODB.DB):
+    if re.match(since_regex,req.path):
+        return handle_messages_since(req, conn, db)
     opts = parse_display_options(req)
     username = ax25.Address(conn.remote_callsign).call.upper().strip() 
     msg_return = []
