@@ -13,6 +13,7 @@ class RunnerStatus(Enum):
     STOPPING = 5
     SUCCESSFUL = 6
     FAILED = 7
+    TIMED_OUT = 8
 
 class Runner:
     """Abstract class to take arguments and run a job and track the status and results."""
@@ -22,6 +23,7 @@ class Runner:
         self.username = username.strip().lower()
         self.args = args
         self.env = {}
+        self.started = datetime.datetime.now()
         if environment:
             for key in environment:
                 self.env[key] = environment[key]
@@ -33,11 +35,21 @@ class Runner:
         self.refresh_db = refresh_db
         self.created_at = datetime.datetime.now(datetime.UTC)
 
+    def is_finished(self):
+        if self.status in [RunnerStatus.TIMED_OUT, RunnerStatus.SUCCESSFUL, RunnerStatus.FAILED]:
+            return True
+        return False
+
     def start(self):
-        raise RuntimeError("Attempting to start an abstract class.")
+        self.started = datetime.datetime.now()
 
     def stop(self):
         raise RuntimeError("Attempting to stop an abstract class.")
+
+    def heartbeat(self):
+        """Does any housekeeping while the underlying task is running. When the task is finished,
+        update status and do any cleanup activities."""
+        pass
 
     @property
     def output(self) -> str:
@@ -62,10 +74,40 @@ class Orchestrator:
         self.runners = []
         self.runner_lock = Lock()
 
+    def get_finished_runners(self) -> list[Runner]:
+        return [r for r in self.runners if r.is_finished()]
+
+    def remove_runner(self, job_id: int):
+        runner_object = None
+        for r in self.runners:
+            if r.job_id == job_id:
+                runner_object = r
+                break
+
+        if runner_object is not None:
+            self.runners.remove(runner_object)
+
+    def get_runner_by_id(self, job_id: int) -> Optional[Runner]:
+        for r in self.runners:
+            if r.job_id == job_id:
+                return r
+
+    def runners_available(self) -> bool:
+        """Abstract. True if a runner can be started. False, if queue is full or orchestrator not ready."""
+        pass
+
     def new_runner(self, username: str, args: Iterable[str], job_id: int, environment: Optional[dict] = None,
                  timeout_secs: str = 300, refresh_db: bool = True, labels: Optional[list] = None) -> Runner:
         pass
 
     def manage_lifecycle(self):
-        """When called, starts any pending runners if queue allows, looks for finished runners and updates statuses."""
+        """When called, updates runner statuses and performs any housekeeping."""
+        pass
+
+    def start(self):
+        """Do any setup and then be ready to operate"""
+        pass
+
+    def stop(self):
+        """Do any cleanup needed."""
         pass

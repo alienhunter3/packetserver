@@ -18,12 +18,14 @@ from msgpack.exceptions import OutOfData
 from typing import Callable, Self, Union
 from traceback import  format_exc
 from os import linesep
+from threading import Thread
 
 def init_bulletins(root: PersistentMapping):
     if 'bulletins' not in root:
         root['bulletins'] = PersistentList()
     if 'bulletin_counter' not in root:
         root['bulletin_counter'] = 0
+
 
 class Server:
     def __init__(self, pe_server: str, port: int, server_callsign: str, data_dir: str = None, zeo: bool = True):
@@ -37,6 +39,8 @@ class Server:
         self.zeo_stop = None
         self.zeo = zeo
         self.started = False
+        self.orchestrator = None
+        self.worker_thread = None
         if data_dir:
             data_path = Path(data_dir)
         else:
@@ -83,7 +87,6 @@ class Server:
         signal.signal(signal.SIGTERM, self.exit_gracefully)
         self.db.close()
         self.storage.close()
-
 
     @property
     def data_file(self) -> str:
@@ -176,7 +179,18 @@ class Server:
         if not self.started:
             return
         # Add things to do here:
-        pass
+        if self.orchestrator is not None:
+            self.orchestrator.manage_lifecycle()
+
+    def run_worker(self):
+        """Intended to be running as a thread."""
+        logging.info("Starting worker thread.")
+        while self.started:
+            self.server_worker()
+            time.sleep(1)
+
+    def __del__(self):
+        self.stop()
 
     def start_db(self):
         if not self.zeo:
@@ -201,10 +215,7 @@ class Server:
         self.app.start(self.pe_server, self.pe_port)
         self.app.register_callsigns(self.callsign)
         self.started = True
-        while self.started:
-            self.server_worker()
-            time.sleep(5)
-
+        self.worker_thread = Thread(target=self.run_worker)
 
     def exit_gracefully(self, signum, frame):
         self.stop()
@@ -217,6 +228,7 @@ class Server:
             self.zeo_stop()
 
     def stop(self):
+        self.started = False
         cm = self.app._engine._active_handler._handlers[1]._connection_map
         for key in cm._connections.keys():
             cm._connections[key].close()
