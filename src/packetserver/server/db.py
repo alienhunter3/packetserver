@@ -2,6 +2,7 @@ import ZODB
 import json
 import gzip
 import base64
+from io import BytesIO
 
 def get_user_db(username: str, db: ZODB.DB) -> dict:
     udb = {
