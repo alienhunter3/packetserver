@@ -4,6 +4,51 @@ from enum import Enum
 import datetime
 from uuid import UUID, uuid4
 from threading import Lock
+import os.path
+from packetserver.runner.constants import job_setup_script, job_end_script, container_setup_script
+from packetserver.common.util import multi_bytes_to_tar_bytes
+
+
+def scripts_tar() -> bytes:
+    return multi_bytes_to_tar_bytes({
+        'job_setup_script.sh': job_setup_script,
+        'job_end_script.sh': job_end_script,
+        'container_setup_script.sh': container_setup_script
+    })
+
+class RunnerFile:
+    def __init__(self, destination_path: str, source_path: str = None, data: bytes = b'', read_only: bool = False):
+        self._data = data
+        self._source_path = ""
+
+        if source_path is not None:
+            if source_path.strip() != "":
+                if not os.path.isfile(source_path.strip()):
+                    raise ValueError("Source Path must point to a file.")
+                self._source_path = source_path.strip()
+
+        self.destination_path = destination_path.strip()
+        if self.destination_path == "":
+            raise ValueError("Destination path cannot be empty.")
+        if not os.path.isabs(self.destination_path):
+            raise ValueError("Destination path must be an absolute path.")
+
+        self.is_read_only = read_only
+
+    @property
+    def basename(self) -> str:
+        return os.path.basename(self.destination_path)
+
+    @property
+    def dirname(self) -> str:
+        return os.path.dirname(self.destination_path)
+
+    @property
+    def data(self) -> bytes:
+            if self._source_path == "":
+                return self._data
+            else:
+                return open(self._source_path, "rb").read()
 
 class RunnerStatus(Enum):
     CREATED = 1
@@ -18,7 +63,12 @@ class RunnerStatus(Enum):
 class Runner:
     """Abstract class to take arguments and run a job and track the status and results."""
     def __init__(self, username: str, args: Iterable[str], job_id: int, environment: Optional[dict] = None,
-                 timeout_secs: str = 300, refresh_db: bool = True, labels: Optional[list] = None):
+                 timeout_secs: str = 300, refresh_db: bool = True, labels: Optional[list] = None,
+                 files: list[RunnerFile] = None):
+        self.files = []
+        if files is not None:
+            for f in files:
+                self.files.append(f)
         self.status = RunnerStatus.CREATED
         self.username = username.strip().lower()
         self.args = args
@@ -35,8 +85,13 @@ class Runner:
         self.refresh_db = refresh_db
         self.created_at = datetime.datetime.now(datetime.UTC)
 
-    def is_finished(self):
+    def is_finished(self) -> bool:
         if self.status in [RunnerStatus.TIMED_OUT, RunnerStatus.SUCCESSFUL, RunnerStatus.FAILED]:
+            return True
+        return False
+
+    def is_in_process(self) -> bool:
+        if self.status in [RunnerStatus.QUEUED, RunnerStatus.RUNNING, RunnerStatus.STARTING, RunnerStatus.STOPPING]:
             return True
         return False
 
@@ -97,7 +152,8 @@ class Orchestrator:
         pass
 
     def new_runner(self, username: str, args: Iterable[str], job_id: int, environment: Optional[dict] = None,
-                 timeout_secs: str = 300, refresh_db: bool = True, labels: Optional[list] = None) -> Runner:
+                 timeout_secs: str = 300, refresh_db: bool = True, labels: Optional[list] = None,
+                   files: list[RunnerFile] = None) -> Runner:
         pass
 
     def manage_lifecycle(self):

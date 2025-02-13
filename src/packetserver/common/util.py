@@ -78,6 +78,20 @@ def bytes_to_tar_bytes(name: str, data: bytes) -> bytes:
         temp.seek(0)
         return temp.read()
 
+def multi_bytes_to_tar_bytes(objects: dict) -> bytes:
+    """Creates a tar archive with a single file of name <name> with <data> bytes as the contents"""
+    with tempfile.TemporaryFile() as temp:
+        tar_obj = tarfile.TarFile(fileobj=temp, mode="w")
+        for name in objects:
+            data = bytes(objects[name])
+            bio = BytesIO(data)
+            tar_info = tarfile.TarInfo(name=name)
+            tar_info.size = len(data)
+            tar_obj.addfile(tar_info, bio)
+        tar_obj.close()
+        temp.seek(0)
+        return temp.read()
+
 def extract_tar_bytes(tarfile_bytes: bytes) -> Tuple[str, bytes]:
     """Takes the bytes of a tarfile, and returns the name and bytes of the first file in the archive."""
     out_bytes = b''

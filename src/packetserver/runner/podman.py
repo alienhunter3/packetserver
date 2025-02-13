@@ -1,7 +1,7 @@
 """Uses podman to run jobs in containers."""
 import time
 
-from . import Runner, Orchestrator, RunnerStatus
+from . import Runner, Orchestrator, RunnerStatus, RunnerFile, scripts_tar
 from collections import namedtuple
 from typing import Optional, Iterable
 import subprocess
@@ -14,6 +14,11 @@ import ZODB
 import datetime
 from os.path import basename, dirname
 from packetserver.common.util import bytes_to_tar_bytes, random_string
+from packetserver import VERSION as packetserver_version
+import re
+from threading import Thread
+
+env_splitter_rex = '''([a-zA-Z0-9]+)=([a-zA-Z0-9]*)'''
 
 PodmanOptions = namedtuple("PodmanOptions", ["default_timeout", "max_timeout", "image_name",
                                              "max_active_jobs", "container_keepalive", "name_prefix"])
@@ -33,6 +38,7 @@ class PodmanOrchestrator(Orchestrator):
         super().__init__()
         self.started = False
         self.user_containers = {}
+        self.manager_thread = None
         if uri:
             self.uri = uri
         else:
@@ -60,7 +66,41 @@ class PodmanOrchestrator(Orchestrator):
     def get_file_from_user_container(self, username: str, path: str) -> bytes :
         pass
 
+    def podman_container_env(self, container_name: str) -> dict:
+        cli = self.client
+        logging.debug(f"Attempting to remove container named {container_name}")
+        try:
+            con = cli.containers.get(container_name)
+            splitter = re.compile(env_splitter_rex)
+            env = {}
+            for i in con.inspect()['Config']['Env']:
+                m = splitter.match(i)
+                if m:
+                    env[m.groups()[0]] = m.groups()[1]
+            return env
+        except podman.errors.exceptions.NotFound as e:
+            return
+
+    def podman_container_version(self, container_name: str) -> str:
+        try:
+            env = self.podman_container_env(container_name)
+        except:
+            env = {}
+        return env.get("PACKETSERVER_VERSION", "0.0.0")
+
+    def podman_user_container_env(self, username: str) -> dict:
+        container_name = self.get_container_name(username)
+        return self.podman_container_env(container_name)
+
+    def podman_user_container_version(self, username: str) -> str:
+        container_name = self.get_container_name(username)
+        return self.podman_container_version(container_name)
+
     def podman_start_user_container(self, username: str):
+        container_env = {
+            "PACKETSERVER_VERSION": packetserver_version,
+            "PACKETSERVER_USER": username.strip().lower()
+        }
         con = self.client.containers.create(self.opts.image_name, name=self.get_container_name(username),
                                             command=["tail", "-f", "/dev/null"])
         con.start()
@@ -77,6 +117,7 @@ class PodmanOrchestrator(Orchestrator):
             con.stop()
             con.remove()
             raise RuntimeError(f"Couldn't start container for user {username}")
+        self.touch_user_container(username)
 
     def podman_remove_container_name(self, container_name: str):
         cli = self.client
@@ -110,6 +151,15 @@ class PodmanOrchestrator(Orchestrator):
         except podman.errors.exceptions.NotFound:
             return False
 
+    def podman_run_command_simple(self, username: str, command: Iterable[str], as_root: bool = True) -> int:
+        """Runs command defined by arguments iterable in container. As root by default. Returns exit code."""
+        container_name = self.get_container_name(username)
+        un = username.lower().strip()
+        con = self.client.containers.get(container_name)
+        if as_root:
+            un = 'root'
+        return con.exec_run(list(command), user=un)[0]
+
     def clean_orphaned_containers(self):
         cli = self.client
         for i in cli.containers.list(all=True):
@@ -123,7 +173,7 @@ class PodmanOrchestrator(Orchestrator):
         self.user_containers[self.get_container_name(username)] = datetime.datetime.now()
 
     def start_user_container(self, username: str):
-        if not self.podman_container_exists(self.get_container_name(username)):
+        if not self.podman_user_container_exists(username):
             self.podman_start_user_container(username)
         self.touch_user_container(username)
 
@@ -133,6 +183,23 @@ class PodmanOrchestrator(Orchestrator):
             if (datetime.datetime.now() - self.user_containers[c]) > self.opts.container_keepalive:
                 self.podman_remove_container_name(c)
                 del self.user_containers[c]
+            else:
+                if packetserver_version < self.podman_user_container_version(c):
+
+    def user_runners_in_process(self, username: str) -> int:
+        un = username.strip().lower()
+        count = 0
+        for r in self.runners:
+            if r.is_in_process:
+                if r.username == un:
+                    count = count + 1
+        return count
+
+    def user_running(self, username: str) -> bool:
+        if self.user_runners_in_process(username) > 0:
+            return True
+        else:
+            return False
 
     def runners_in_process(self) -> int:
         count = 0
@@ -151,7 +218,8 @@ class PodmanOrchestrator(Orchestrator):
         return False
 
     def new_runner(self, username: str, args: Iterable[str], job_id: int, environment: Optional[dict] = None,
-                 timeout_secs: str = 300, refresh_db: bool = True, labels: Optional[list] = None) -> Optional[Runner]:
+                 timeout_secs: str = 300, refresh_db: bool = True, labels: Optional[list] = None,
+                   files: list[RunnerFile] = None) -> Optional[Runner]:
         if not self.started:
             return None
         with self.runner_lock:
@@ -160,6 +228,8 @@ class PodmanOrchestrator(Orchestrator):
             pass
 
     def manage_lifecycle(self):
+        if not self.started:
+            return
         with self.runner_lock:
             for r in self.runners:
                 if r.status is RunnerStatus.RUNNING:
@@ -169,8 +239,22 @@ class PodmanOrchestrator(Orchestrator):
             self.clean_containers()
             self.clean_orphaned_containers()
 
+    def manager(self):
+        logging.debug("Starting podman orchestrator thread.")
+        while self.started:
+            self.manage_lifecycle()
+            time.sleep(.5)
+        logging.debug("Stopping podman orchestrator thread.")
+
     def start(self):
-        self.started = True
+        if not self.started:
+            self.clean_orphaned_containers()
+            self.started = True
+            self.manager_thread = Thread(target=self.manager)
+            self.manager_thread.start()
 
     def stop(self):
         self.started = False
+        if self.manager_thread is not None:
+            self.manager_thread.join(timeout=15)
+        self.manager_thread = None

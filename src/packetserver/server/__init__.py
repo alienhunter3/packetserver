@@ -179,8 +179,6 @@ class Server:
         if not self.started:
             return
         # Add things to do here:
-        if self.orchestrator is not None:
-            self.orchestrator.manage_lifecycle()
 
     def run_worker(self):
         """Intended to be running as a thread."""
@@ -215,7 +213,10 @@ class Server:
         self.app.start(self.pe_server, self.pe_port)
         self.app.register_callsigns(self.callsign)
         self.started = True
+        if self.orchestrator is not None:
+            self.orchestrator.start()
         self.worker_thread = Thread(target=self.run_worker)
+        self.worker_thread.start()
 
     def exit_gracefully(self, signum, frame):
         self.stop()
@@ -232,6 +233,8 @@ class Server:
         cm = self.app._engine._active_handler._handlers[1]._connection_map
         for key in cm._connections.keys():
             cm._connections[key].close()
+        if self.orchestrator is not None:
+            self.orchestrator.stop()
         self.app.stop()
         self.stop_db()
 
