@@ -34,6 +34,9 @@ class RunnerFile:
 
         self.root_owned = root_owned
 
+    def __repr__(self):
+        return f"<RunnerFile: {self.basename}>"
+
     @property
     def basename(self) -> str:
         return os.path.basename(self.destination_path)

@@ -24,7 +24,6 @@ echo "Ending now.."
 job_setup_script = """#!/bin/bash
 set -e
 PACKETSERVER_JOB_DIR="/home/${PACKETSERVER_USER}/.packetserver/${PACKETSERVER_JOBID}"
-mkdir -pv "${PACKETSERVER_JOB_DIR}/files"
 mkdir -pv "${PACKETSERVER_JOB_DIR}/artifacts"
 chown ${PACKETSERVER_USER} "/home/${PACKETSERVER_USER}"
 chown -R ${PACKETSERVER_USER} "${PACKETSERVER_JOB_DIR}"

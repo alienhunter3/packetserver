@@ -103,6 +103,14 @@ class PodmanRunner(Runner):
         return self._result[1][0]
 
     @property
+    def str_output(self) -> str:
+        try:
+            output = self.output.decode()
+        except:
+            output = str(self.output)
+        return output
+
+    @property
     def errors(self) -> str:
         return self._result[1][1].decode()
 
@@ -117,18 +125,25 @@ class PodmanRunner(Runner):
         logging.debug(f"Running job setup script for {self.job_id} runner")
         setup_res = self.container.exec_run("bash /root/scripts/job_setup_script.sh",
                                 environment=self.env, user="root", tty=True)
-        logging.debug(f"{self.job_id} Setup script:\n{str(setup_res[1])}")
+        logging.debug(f"Job {self.job_id} setup script:\n{str(setup_res[1])}")
         if setup_res[0] != 0:
             self.status = RunnerStatus.FAILED
-            raise RuntimeError(f"Couldn't run setup scripts for {self.job}:\n{setup_res[1]}")
+            raise RuntimeError(f"Couldn't run setup scripts for {self.job_id}:\n{setup_res[1]}")
         # put files where they need to be
         for f in self.files:
-            logging.debug(f"Adding file {f}")
+            logging.debug(f"Adding file {f} for job {self.job_id}")
             if not f.isabs:
-                f.destination_path = os.path.join(self.job_path, f.destination_path)
-            self.container.put_archive(f.dirname, f.tar_data())
+                dest = os.path.join(self.job_path, f.destination_path)
+                dirn = os.path.dirname(dest)
+            else:
+                dest = f.destination_path
+                dirn = f.dirname
+            if self.container.put_archive(dirn, f.tar_data()):
+                logging.debug(f"Placed file {dest} for job {self.job_id}")
+            else:
+                logging.warning(f"Failed to place file {dest} for job {self.job_id}!!")
             if not f.root_owned:
-                self.container.exec_run(f"chown -R {self.username} {f.destination_path}")
+                self.container.exec_run(f"chown -R {self.username} {dest}")
 
         # start thread
         logging.debug(f"Starting runner thread for {self.job_id}")
@@ -184,7 +199,6 @@ class PodmanOrchestrator(Orchestrator):
 
     def podman_container_env(self, container_name: str) -> dict:
         cli = self.client
-        logging.debug(f"Attempting to remove container named {container_name}")
         try:
             con = cli.containers.get(container_name)
             splitter = re.compile(env_splitter_rex)
@@ -195,22 +209,13 @@ class PodmanOrchestrator(Orchestrator):
                     env[m.groups()[0]] = m.groups()[1]
             return env
         except podman.errors.exceptions.NotFound as e:
-            return
+            return {}
 
-    def podman_container_version(self, container_name: str) -> str:
-        try:
-            env = self.podman_container_env(container_name)
-        except:
-            env = {}
-        return env.get("PACKETSERVER_VERSION", "0.0.0")
 
     def podman_user_container_env(self, username: str) -> dict:
         container_name = self.get_container_name(username)
         return self.podman_container_env(container_name)
 
-    def podman_user_container_version(self, username: str) -> str:
-        container_name = self.get_container_name(username)
-        return self.podman_container_version(container_name)
 
     def podman_start_user_container(self, username: str) -> Container:
         container_env = {
@@ -339,12 +344,6 @@ class PodmanOrchestrator(Orchestrator):
             if (datetime.datetime.now() - self.user_containers[c]).total_seconds() > self.opts.container_keepalive:
                 logging.debug(f"Container {c} no activity for {self.opts.container_keepalive} seconds. Clearing.")
                 containers_to_clean.add(c)
-            else:
-                if packetserver_version < self.podman_container_version(c):
-                    logging.debug(f"Container {c} was created using older code version. Clearing.")
-                    un = self.get_username_from_container_name(c)
-                    if not self.user_running(un):
-                        containers_to_clean.add(c)
         for c in list(containers_to_clean):
             self.podman_remove_container_name(c)
             del self.user_containers[c]
