@@ -5,19 +5,20 @@ import datetime
 from uuid import UUID, uuid4
 from threading import Lock
 import os.path
-from packetserver.runner.constants import job_setup_script, job_end_script, container_setup_script
-from packetserver.common.util import multi_bytes_to_tar_bytes
+from packetserver.runner.constants import job_setup_script, job_end_script, container_setup_script, container_run_script
+from packetserver.common.util import multi_bytes_to_tar_bytes, bytes_to_tar_bytes, TarFileExtractor
 
 
 def scripts_tar() -> bytes:
     return multi_bytes_to_tar_bytes({
-        'job_setup_script.sh': job_setup_script,
-        'job_end_script.sh': job_end_script,
-        'container_setup_script.sh': container_setup_script
+        'job_setup_script.sh': job_setup_script.encode(),
+        'job_end_script.sh': job_end_script.encode(),
+        'container_run_script.sh': container_run_script.encode(),
+        'container_setup_script.sh': container_setup_script.encode()
     })
 
 class RunnerFile:
-    def __init__(self, destination_path: str, source_path: str = None, data: bytes = b'', read_only: bool = False):
+    def __init__(self, destination_path: str, source_path: str = None, data: bytes = b'', root_owned: bool = False):
         self._data = data
         self._source_path = ""
 
@@ -30,10 +31,8 @@ class RunnerFile:
         self.destination_path = destination_path.strip()
         if self.destination_path == "":
             raise ValueError("Destination path cannot be empty.")
-        if not os.path.isabs(self.destination_path):
-            raise ValueError("Destination path must be an absolute path.")
 
-        self.is_read_only = read_only
+        self.root_owned = root_owned
 
     @property
     def basename(self) -> str:
@@ -44,11 +43,18 @@ class RunnerFile:
         return os.path.dirname(self.destination_path)
 
     @property
+    def isabs(self) -> bool:
+        return os.path.isabs(self.destination_path)
+
+    @property
     def data(self) -> bytes:
             if self._source_path == "":
                 return self._data
             else:
                 return open(self._source_path, "rb").read()
+
+    def tar_data(self) -> bytes:
+        return bytes_to_tar_bytes(self.basename, self.data)
 
 class RunnerStatus(Enum):
     CREATED = 1
@@ -62,8 +68,8 @@ class RunnerStatus(Enum):
 
 class Runner:
     """Abstract class to take arguments and run a job and track the status and results."""
-    def __init__(self, username: str, args: Iterable[str], job_id: int, environment: Optional[dict] = None,
-                 timeout_secs: str = 300, refresh_db: bool = True, labels: Optional[list] = None,
+    def __init__(self, username: str, args: Union[str, list[str]], job_id: int, environment: Optional[dict] = None,
+                 timeout_secs: str = 300, labels: Optional[list] = None,
                  files: list[RunnerFile] = None):
         self.files = []
         if files is not None:
@@ -72,18 +78,23 @@ class Runner:
         self.status = RunnerStatus.CREATED
         self.username = username.strip().lower()
         self.args = args
+        self.job_id = int(job_id)
         self.env = {}
         self.started = datetime.datetime.now()
+        self._result = (0,(b'', b''))
         if environment:
             for key in environment:
                 self.env[key] = environment[key]
         self.labels = []
-        for l in labels:
-            self.labels.append(l)
+        if type(labels) is list:
+            for l in labels:
+                self.labels.append(l)
 
         self.timeout_seconds = timeout_secs
-        self.refresh_db = refresh_db
         self.created_at = datetime.datetime.now(datetime.UTC)
+
+    def __repr__(self):
+        return f"<{type(self).__name__}: {self.username}[{self.job_id}] - {self.status.name}>"
 
     def is_finished(self) -> bool:
         if self.status in [RunnerStatus.TIMED_OUT, RunnerStatus.SUCCESSFUL, RunnerStatus.FAILED]:
@@ -101,13 +112,8 @@ class Runner:
     def stop(self):
         raise RuntimeError("Attempting to stop an abstract class.")
 
-    def heartbeat(self):
-        """Does any housekeeping while the underlying task is running. When the task is finished,
-        update status and do any cleanup activities."""
-        pass
-
     @property
-    def output(self) -> str:
+    def output(self) -> bytes:
         raise RuntimeError("Attempting to interact with an abstract class.")
 
     @property
@@ -119,7 +125,7 @@ class Runner:
         raise RuntimeError("Attempting to interact with an abstract class.")
 
     @property
-    def artifacts(self) -> list:
+    def artifacts(self) -> TarFileExtractor:
         raise RuntimeError("Attempting to interact with an abstract class.")
 
 class Orchestrator:

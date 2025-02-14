@@ -2,9 +2,9 @@ import re
 import datetime
 import tempfile
 import tarfile
-from typing import Union, Iterable, Tuple, Optional
+from typing import Union, Iterable, Tuple, Optional, IO
 import os.path
-from io import BytesIO
+from io import BytesIO, BufferedReader
 import random
 import string
 
@@ -78,6 +78,18 @@ def bytes_to_tar_bytes(name: str, data: bytes) -> bytes:
         temp.seek(0)
         return temp.read()
 
+def bytes_tar_has_files(data: Union[bytes, IO]):
+    if type(data) is bytes:
+        bio = BytesIO(data)
+    else:
+        bio = data
+    tar_obj = tarfile.TarFile(fileobj=bio, mode="r")
+    files = [m for m in tar_obj.getmembers() if m.isfile()]
+    if len(files) > 0:
+        return True
+    else:
+        return False
+
 def multi_bytes_to_tar_bytes(objects: dict) -> bytes:
     """Creates a tar archive with a single file of name <name> with <data> bytes as the contents"""
     with tempfile.TemporaryFile() as temp:
@@ -107,3 +119,33 @@ def random_string(length=8) -> str:
     rand_str = ''.join(random.choices(string.ascii_letters + string.digits, k=length))
     return rand_str
 
+
+class TarFileExtractor(object):
+    """Generator created from file like object pointing to tar data"""
+    def __init__(self, fileobj: IO):
+        self.fileobj = fileobj
+        try:
+            self.tar_file = tarfile.TarFile(fileobj=self.fileobj)
+            self._raw_members = [m for m in self.tar_file.getmembers() if m.isfile()]
+        except:
+            self._raw_members = []
+        self._count = 0
+
+    def __iter__(self):
+        return self
+
+    # Python 3 compatibility
+    def __next__(self):
+        return self.next()
+
+    def next(self) -> Tuple[str, IO]:
+        if (self._count + 1) > len(self._raw_members):
+            raise StopIteration()
+        else:
+            member = self._raw_members[self._count]
+            name = member.name
+            if type(name) is bytes:
+                name = name.decode()
+            name = str(name)
+            self._count = self._count + 1
+            return os.path.basename(name), self.tar_file.extractfile(member)
