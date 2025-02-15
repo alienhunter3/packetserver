@@ -24,8 +24,11 @@ class Client:
         self.callsign = client_callsign
         self.app = pe.app.Application()
         self.started = False
-        signal.signal(signal.SIGINT, self.stop)
-        signal.signal(signal.SIGTERM, self.stop)
+        signal.signal(signal.SIGINT, self.exit_gracefully)
+        signal.signal(signal.SIGTERM, self.exit_gracefully)
+
+    def exit_gracefully(self, signum, frame):
+        self.stop()
 
     def stop(self):
         self.started = False
