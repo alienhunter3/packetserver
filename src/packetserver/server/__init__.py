@@ -26,7 +26,6 @@ def init_bulletins(root: PersistentMapping):
     if 'bulletin_counter' not in root:
         root['bulletin_counter'] = 0
 
-
 class Server:
     def __init__(self, pe_server: str, port: int, server_callsign: str, data_dir: str = None, zeo: bool = True):
         if not ax25.Address.valid_call(server_callsign):
@@ -79,6 +78,13 @@ class Server:
             if 'objects' not in conn.root():
                 logging.debug("objects bucket missing, creating")
                 conn.root.objects = OOBTree()
+            if 'jobs' not in conn.root():
+                logging.debug("jobss bucket missing, creating")
+                conn.root.jobs = OOBTree()
+            if 'job_queue' not in conn.root():
+                conn.root.job_queue = PersistentList()
+            if 'user_jobs' not in conn.root():
+                conn.root.user_jobs = PersistentMapping()
             init_bulletins(conn.root())
         self.app = pe.app.Application()
         PacketServerConnection.receive_subscribers.append(lambda x: self.server_receiver(x))
@@ -179,6 +185,7 @@ class Server:
         if not self.started:
             return
         # Add things to do here:
+            # TODO Queue jobs if applicable.
 
     def run_worker(self):
         """Intended to be running as a thread."""

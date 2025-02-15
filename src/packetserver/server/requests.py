@@ -17,11 +17,14 @@ def handle_root_get(req: Request, conn: PacketServerConnection,
     response.compression = Message.CompressionType.BZIP2
     operator = ""
     motd = ""
+    jobs_enabled = False
     with db.transaction() as storage:
         if 'motd' in storage.root.config:
             motd = storage.root.config['motd']
         if 'operator' in storage.root.config:
             operator = storage.root.config['operator']
+        if 'jobs_enabled' in storage.root.config:
+            jobs_enabled = storage.root.config['jobs_enabled']
     logging.debug(f"Root handler retrieved config. {operator} - {motd}")
     logging.debug("Running user_authorized")
     if user_authorized(conn, db):
@@ -32,8 +35,10 @@ def handle_root_get(req: Request, conn: PacketServerConnection,
     response.payload = {
         'operator': operator,
         'motd': motd,
-        'user': user_message
+        'user': user_message,
+        'accepts_jobs': jobs_enabled
     }
+
     logging.debug(f"Sending response {response}")
     send_response(conn, response, req)
     logging.debug("Sent reesponse.")

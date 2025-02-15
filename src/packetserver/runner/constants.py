@@ -40,7 +40,7 @@ rm -rfv "${PACKETSERVER_JOB_DIR}"
 
 podman_bash_start = """ echo 'waiting for /root/scripts/container_run_script.sh to exist'
 while ! [ -f '/root/scripts/container_run_script.sh' ]; do
-    tail /dev/null
+    sleep .1
 done
 echo 'entering /root/scripts/container_run_script.sh ...'
 bash /root/scripts/container_run_script.sh

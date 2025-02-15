@@ -83,7 +83,8 @@ class Runner:
         self.args = args
         self.job_id = int(job_id)
         self.env = {}
-        self.started = datetime.datetime.now()
+        self.started_at = datetime.datetime.now()
+        self.finished_at = None
         self._result = (0,(b'', b''))
         if environment:
             for key in environment:
@@ -119,8 +120,15 @@ class Runner:
     def output(self) -> bytes:
         raise RuntimeError("Attempting to interact with an abstract class.")
 
+    def output_str(self) -> str:
+        raise RuntimeError("Attempting to interact with an abstract class.")
+
     @property
-    def errors(self) -> str:
+    def errors(self) -> bytes:
+        raise RuntimeError("Attempting to interact with an abstract class.")
+
+    @property
+    def errors_str(self) -> str:
         raise RuntimeError("Attempting to interact with an abstract class.")
 
     @property
@@ -130,6 +138,10 @@ class Runner:
     @property
     def artifacts(self) -> TarFileExtractor:
         raise RuntimeError("Attempting to interact with an abstract class.")
+
+    @property
+    def has_artifacts(self) -> bool:
+        raise RuntimeError("Abstract method called.")
 
 class Orchestrator:
     """Abstract class holds configuration and also tracks runners through their lifecycle. Prepares environments to

@@ -81,6 +81,7 @@ class PodmanRunner(Runner):
         except:
             logging.warning(f"Error retrieving artifacts for {self.job_id}:\n{format_exc()}")
             self._artifact_archive = b''
+        self.finished_at = datetime.datetime.now()
         # set final status to FAILED or SUCCEEDED
         if self.return_code == 0:
             self.status = RunnerStatus.SUCCESSFUL
@@ -96,14 +97,17 @@ class PodmanRunner(Runner):
 
     @property
     def artifacts(self) -> TarFileExtractor:
-        return TarFileExtractor(gzip.GzipFile(fileobj=BytesIO(self._artifact_archive)))
+        if self._artifact_archive == b'':
+            return TarFileExtractor(BytesIO(b''))
+        else:
+            return TarFileExtractor(gzip.GzipFile(fileobj=BytesIO(self._artifact_archive)))
 
     @property
     def output(self) -> bytes:
         return self._result[1][0]
 
     @property
-    def str_output(self) -> str:
+    def output_str(self) -> str:
         try:
             output = self.output.decode()
         except:
@@ -112,6 +116,10 @@ class PodmanRunner(Runner):
 
     @property
     def errors(self) -> str:
+        return self._result[1][1]
+
+    @property
+    def errors_str(self) -> str:
         return self._result[1][1].decode()
 
     @property
@@ -423,6 +431,10 @@ class PodmanOrchestrator(Orchestrator):
             self.started = True
             self.manager_thread = Thread(target=self.manager)
             self.manager_thread.start()
+
+    def __del__(self):
+        if self.started:
+            self.stop()
 
     def stop(self):
         logging.debug("Stopping podman orchestrator.")

@@ -9,7 +9,8 @@ def get_user_db(username: str, db: ZODB.DB) -> dict:
         "objects": {},
         "messages": [],
         "user": {},
-        "bulletins": []
+        "bulletins": [],
+        "jobs": []
     }
     username = username.strip().upper()
     with db.transaction() as db_conn:
@@ -30,6 +31,8 @@ def get_user_db(username: str, db: ZODB.DB) -> dict:
             udb['messages'].append(m.to_dict())
         for b in db_conn.root.bulletins:
             udb['bulletins'].append(b.to_dict())
+
+        # TODO pack jobs into output
 
     return udb
 
