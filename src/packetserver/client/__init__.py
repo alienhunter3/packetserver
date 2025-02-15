@@ -25,6 +25,7 @@ class Client:
         self.started = False
         signal.signal(signal.SIGINT, self.exit_gracefully)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
+        self.connection_map = None
 
     def exit_gracefully(self, signum, frame):
         self.stop()
@@ -33,10 +34,12 @@ class Client:
         self.started = False
         self.clear_connections()
         self.app.stop()
+        self.connection_map = None
 
     def start(self):
         self.app.start(self.pe_server, self.pe_port)
         self.app.register_callsigns(self.callsign)
+        self.connection_map = self.app._engine._active_handler._handlers[1]._connection_map
         self.started = True
 
     def clear_connections(self):
@@ -77,6 +80,9 @@ class Client:
             msg = Message.partial_unpack(unpacked)
             return Response(msg)
         return None
+
+    #def send_receive_callsign(self, req: Request, callsign: str, timeout: int = 300) -> Optional[Response]:
+    #    for conn in self.connection_map
 
     def single_connect_send_receive(self, dest: str, req: Request, timeout: int = 300) -> Optional[Response]:
         conn = self.new_connection(dest)
