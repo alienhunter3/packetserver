@@ -41,7 +41,7 @@ class Client:
             raise ValueError("Must supply a valid callsign.")
         callsign = callsign.upper().strip()
         for key in self.connections.keys():
-            if key.split(1) == callsign:
+            if key.split(":")[1] == callsign:
                 return self.connections['key']
         return self.new_connection(callsign)
 
