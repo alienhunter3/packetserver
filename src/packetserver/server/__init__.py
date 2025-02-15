@@ -91,11 +91,13 @@ class Server:
             if 'user_jobs' not in conn.root():
                 conn.root.user_jobs = PersistentMapping()
             init_bulletins(conn.root())
-
-            if 'jobs_enabled' in conn.root.config:
+            if ('jobs_enabled' in conn.root.config) and conn.root.config['jobs_enabled']:
+                logging.debug(conn.root.config['jobs_enabled'])
+                logging.debug(conn.root.config['jobs_config'])
                 if 'runner' in conn.root.config['jobs_config']:
                     val = str(conn.root.config['jobs_config']['runner']).lower().strip()
                     if val in ['podman']:
+                        logging.debug("Enabling podman orchestrator")
                         self.orchestrator = get_orchestrator_from_config(conn.root.config['jobs_config'])
 
         self.app = pe.app.Application()
@@ -198,7 +200,7 @@ class Server:
             return
         # Add things to do here:
 
-        if self.orchestrator.started:
+        if (self.orchestrator is not None) and self.orchestrator.started:
             with self.db.transaction() as storage:
                 # queue as many jobs as possible
                 while self.orchestrator.runners_available():
@@ -219,7 +221,6 @@ class Server:
                     else:
                         break
 
-        if self.orchestrator.started:
             finished_runners = []
             for runner in self.orchestrator.runners:
                 if runner.is_finished():

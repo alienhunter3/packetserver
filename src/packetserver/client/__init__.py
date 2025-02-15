@@ -88,4 +88,6 @@ class Client:
             logging.debug("Connection attempt timed out.")
             conn.close()
             return None
-        return self.send_and_receive(req, conn, timeout=int(remaining_time))
+        response = self.send_and_receive(req, conn, timeout=int(remaining_time))
+        conn.close()
+        return response
