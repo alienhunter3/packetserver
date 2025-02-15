@@ -54,8 +54,9 @@ class Client:
             if conn.state.name in ['DISCONNECTED', 'DISCONNECTING']:
                 raise RuntimeError("Connection disconnected unexpectedly.")
             time.sleep(.1)
-        logging.debug("Allowing connection to stabilize for 10 seconds")
-        time.sleep(10)
+        logging.debug(f"Connection to {dest} ready.")
+        logging.debug("Allowing connection to stabilize for 5 seconds")
+        time.sleep(5)
         return conn
 
     def send_and_receive(self, req: Request, conn: PacketServerConnection, timeout: int = 300) -> Optional[Response]:
