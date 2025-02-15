@@ -42,7 +42,7 @@ class Client:
         callsign = callsign.upper().strip()
         for key in self.connections.keys():
             if key.split(":")[1] == callsign:
-                return self.connections['key']
+                return self.connections[key]
         return self.new_connection(callsign)
 
     def stop(self):
