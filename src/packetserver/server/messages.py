@@ -21,7 +21,7 @@ from traceback import format_exc
 from collections import namedtuple
 import re
 
-since_regex = '''^message\/since\/(\d+)$'''
+since_regex = """^message\\/since\\/(\\d+)$"""
 
 def mailbox_create(username: str, db_root: PersistentMapping):
     un = username.upper().strip()
@@ -401,7 +401,7 @@ def handle_message_post(req: Request, conn: PacketServerConnection, db: ZODB.DB)
     send_blank_response(conn, req, status_code=201, payload={"successes": send_counter, "failed": failed})
 
 def message_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
-    logging.debug(f"{req} being processed by user_root_handler")
+    logging.debug(f"{req} being processed by message_root_handler")
     if not user_authorized(conn, db):
         logging.debug(f"user {conn.remote_callsign} not authorized")
         send_blank_response(conn, req, status_code=401)
@@ -409,7 +409,7 @@ def message_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB
     logging.debug("user is authorized")
     if req.method is Request.Method.GET:
         handle_message_get(req, conn, db)
-    if req.method is Request.Method.POST:
+    elif req.method is Request.Method.POST:
         handle_message_post(req, conn, db)
     else:
         send_blank_response(conn, req, status_code=404)

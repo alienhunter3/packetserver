@@ -86,6 +86,7 @@ class Runner:
         self.started_at = datetime.datetime.now()
         self.finished_at = None
         self._result = (0,(b'', b''))
+        self._artifact_archive = b''
         if environment:
             for key in environment:
                 self.env[key] = environment[key]

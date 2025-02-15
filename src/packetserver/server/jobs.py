@@ -1,10 +1,14 @@
+import re
+
 import ax25
 import persistent
 import persistent.list
 from persistent.mapping import PersistentMapping
 import datetime
 from typing import Self,Union,Optional,Tuple
+from traceback import format_exc
 from packetserver.common import PacketServerConnection, Request, Response, Message, send_response, send_blank_response
+from packetserver.common.constants import no_values
 import ZODB
 from persistent.list import PersistentList
 import logging
@@ -12,7 +16,8 @@ from packetserver.server.users import user_authorized
 import gzip
 import tarfile
 import json
-from packetserver.runner.podman import TarFileExtractor
+from packetserver.runner.podman import TarFileExtractor, PodmanOrchestrator, PodmanRunner, PodmanOptions
+from packetserver.runner import Orchestrator, Runner, RunnerStatus
 from enum import Enum
 from io import BytesIO
 import base64
@@ -27,6 +32,16 @@ class JobStatus(Enum):
     FAILED = 7
     TIMED_OUT = 8
 
+def get_orchestrator_from_config(cfg: dict) -> Union[Orchestrator, PodmanOrchestrator]:
+    if 'runner' in cfg:
+        val = cfg['runner'].lower().strip()
+        if val == "podman":
+            return PodmanOrchestrator()
+        else:
+            raise RuntimeError("Other orchestrators not implemented yet.")
+    else:
+        raise RuntimeError("Runners not configured in root.config.jobs_config")
+
 def get_new_job_id(root: PersistentMapping) -> int:
     if 'job_counter' not in root:
         root['job_counter'] = 1
@@ -37,6 +52,25 @@ def get_new_job_id(root: PersistentMapping) -> int:
         return current
 
 class Job(persistent.Persistent):
+    @classmethod
+    def update_job_from_runner(cls, runner: Runner, db_root: PersistentMapping) -> True:
+        job = Job.get_job_by_id(runner.job_id, db_root)
+        if job is None:
+            logging.warning(f"Couldn't match runner {runner} with a job by id.")
+            return False
+        if not runner.is_finished():
+            return False
+        job.finished_at = datetime.datetime.now()
+        job.output = runner.output
+        job.errors = runner.errors
+        job.return_code = runner.return_code
+        job._artifact_archive = runner._artifact_archive
+        if runner.status == RunnerStatus.SUCCESSFUL:
+            job.status = JobStatus.SUCCESSFUL
+        else:
+            job.status = JobStatus.FAILED
+        return True
+
     @classmethod
     def get_job_by_id(cls, jid: int, db_root: PersistentMapping) -> Optional[Self]:
         if jid in db_root['jobs']:
@@ -71,7 +105,7 @@ class Job(persistent.Persistent):
 
     def __init__(self, cmd: Union[list[str], str], owner: Optional[str] = None, timeout: int = 300):
         self.owner = None
-        if self.owner is not None:
+        if owner is not None:
             self.owner = str(owner).upper().strip()
         self.cmd = cmd
         self.created_at = datetime.datetime.now(datetime.UTC)
@@ -121,8 +155,10 @@ class Job(persistent.Persistent):
             return artifacts[index][0], artifacts[index][1].read()
 
     def queue(self, db_root: PersistentMapping) -> int:
+        logging.debug(f"Attempting to queue job {self}")
         if self.owner is None or (str(self.owner).strip() == ""):
             raise ValueError("Job must have an owner to be queued.")
+
         if self.id is None:
             self.id = get_new_job_id(db_root)
             owner = self.owner.upper().strip()
@@ -149,7 +185,7 @@ class Job(persistent.Persistent):
             "errors": b'',
             "return_code": self.return_code,
             "artifacts": [],
-            "status": self.status,
+            "status": self.status.name,
             "id": self.id
         }
         if include_data:
@@ -169,3 +205,92 @@ class Job(persistent.Persistent):
 
     def json(self, include_data: bool = True) -> str:
         return json.dumps(self.to_dict(include_data=include_data, binary_safe=True))
+
+def handle_job_get_id(req: Request, conn: PacketServerConnection, db: ZODB.DB, jid: int):
+    username = ax25.Address(conn.remote_callsign).call.upper().strip()
+    value = "y"
+    include_data = True
+    for key in req.vars:
+        if key.lower().strip() == "data":
+            value = req.vars[key].lower().strip()
+    if value in no_values:
+        include_data = False
+
+    with db.transaction() as storage:
+        try:
+            job = Job.get_job_by_id(jid, storage.root())
+            if job is None:
+                send_blank_response(conn, req, 404)
+                return
+            if job.owner != username:
+                send_blank_response(conn, req, 401)
+                return
+            send_blank_response(conn, req, 200, job.to_dict(include_data=include_data))
+            return
+        except:
+            logging.error(f"Error looking up job {jid}:\n{format_exc()}")
+            send_blank_response(conn, req, 500, payload="unknown server error")
+
+def handle_job_get_user(req: Request, conn: PacketServerConnection, db: ZODB.DB):
+    username = ax25.Address(conn.remote_callsign).call.upper().strip()
+    # TODO finish user job lookup
+    send_blank_response(conn, req, 404)
+
+def handle_job_get(req: Request, conn: PacketServerConnection, db: ZODB.DB):
+    spl = [x for x in req.path.split("/") if x.strip() != ""]
+    if (len(spl) == 2) and (spl[1].isdigit()):
+        handle_job_get_id(req, conn, db, int(spl[1]))
+    elif (len(spl) == 2) and (spl[1].lower() == "user"):
+        handle_job_get_user(req, conn, db)
+    else:
+        send_blank_response(conn, req, status_code=404)
+
+def handle_new_job_post(req: Request, conn: PacketServerConnection, db: ZODB.DB):
+    username = ax25.Address(conn.remote_callsign).call.upper().strip()
+    if 'cmd' not in req.payload:
+        logging.info(f"request {req} did not contain job command (cmd) key")
+        send_blank_response(conn, req, 401, "job post must contain cmd key containing str or list[str]")
+        return
+    if type(req.payload['cmd']) not in [str, list]:
+        send_blank_response(conn, req, 401, "job post must contain cmd key containing str or list[str]")
+        return
+    job = Job(req.payload['cmd'], owner=username)
+    with db.transaction() as storage:
+        try:
+            new_jid = job.queue(storage.root())
+            logging.info(f"New job created with id {new_jid}")
+        except:
+            logging.error(f"Failed to queue new job {job}:\n{format_exc()}")
+            send_blank_response(conn, req, 500, "unknown server error while queuing job")
+            return
+    send_blank_response(conn, req, 201, {'job_id': new_jid})
+
+def handle_job_post(req: Request, conn: PacketServerConnection, db: ZODB.DB):
+    spl = [x for x in req.path.split("/") if x.strip() != ""]
+
+    if len(spl) == 1:
+        handle_new_job_post(req, conn, db)
+    else:
+        send_blank_response(conn, req, status_code=404)
+
+def job_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
+    logging.debug(f"{req} being processed by job_root_handler")
+    if not user_authorized(conn, db):
+        logging.debug(f"user {conn.remote_callsign} not authorized")
+        send_blank_response(conn, req, status_code=401)
+        return
+    logging.debug("user is authorized")
+    with db.transaction() as storage:
+        if 'jobs_enabled' in storage.root.config:
+            jobs_enabled = storage.root.config['jobs_enabled']
+        else:
+            jobs_enabled = False
+    if not jobs_enabled:
+        send_blank_response(conn, req, 400, payload="jobs not enabled on this server")
+        return
+    if req.method is Request.Method.GET:
+        handle_job_get(req, conn, db)
+    elif req.method is Request.Method.POST:
+        handle_job_post(req, conn, db)
+    else:
+        send_blank_response(conn, req, status_code=404)

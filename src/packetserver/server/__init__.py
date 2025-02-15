@@ -1,3 +1,6 @@
+import datetime
+import tempfile
+
 import pe.app
 from packetserver.common import Response, Message, Request, PacketServerConnection, send_response, send_blank_response, \
     DummyPacketServerConnection
@@ -18,7 +21,10 @@ from msgpack.exceptions import OutOfData
 from typing import Callable, Self, Union
 from traceback import  format_exc
 from os import linesep
+from shutil import rmtree
 from threading import Thread
+from packetserver.server.jobs import get_orchestrator_from_config, Job, JobStatus
+from packetserver.runner import RunnerStatus, RunnerFile, Orchestrator, Runner
 
 def init_bulletins(root: PersistentMapping):
     if 'bulletins' not in root:
@@ -86,6 +92,13 @@ class Server:
             if 'user_jobs' not in conn.root():
                 conn.root.user_jobs = PersistentMapping()
             init_bulletins(conn.root())
+
+            if 'jobs_enabled' in conn.root.config:
+                if 'runner' in conn.root.config['jobs_config']:
+                    val = str(conn.root.config['jobs_config']['runner']).lower().strip()
+                    if val in ['podman']:
+                        self.orchestrator = get_orchestrator_from_config(conn.root.config['jobs_config'])
+
         self.app = pe.app.Application()
         PacketServerConnection.receive_subscribers.append(lambda x: self.server_receiver(x))
         PacketServerConnection.connection_subscribers.append(lambda x: self.server_connection_bouncer(x))
@@ -185,14 +198,54 @@ class Server:
         if not self.started:
             return
         # Add things to do here:
-            # TODO Queue jobs if applicable.
+
+        if self.orchestrator.started:
+            with self.db.transaction() as storage:
+                # queue as many jobs as possible
+                while self.orchestrator.runners_available():
+                    if len(storage.root.job_queue) > 0:
+                        jid = storage.root.job_queue[0]
+                        try:
+                            logging.info(f"Starting job {jid}")
+                            job = Job.get_job_by_id(jid, storage.root())
+                        except:
+                            logging.error(f"Error retrieving job {jid}")
+                            break
+                        runner = self.orchestrator.new_runner(job.owner, job.cmd, jid)
+                        if runner is not None:
+                            storage.root.job_queue.remove(jid)
+                            job.status = JobStatus.RUNNING
+                            job.started_at = datetime.datetime.now()
+                            logging.info(f"Started job {job}")
+                    else:
+                        break
+
+        if self.orchestrator.started:
+            finished_runners = []
+            for runner in self.orchestrator.runners:
+                if runner.is_finished():
+                    logging.debug(f"Finishing runner {runner}")
+                    with self.db.transaction() as storage:
+                        try:
+                            if Job.update_job_from_runner(runner, storage.root()):
+                                finished_runners.append(runner)
+                                logging.info(f"Runner {runner} successfully synced with jobs.")
+                            else:
+                                logging.error(f"update_job_from_runner returned False.")
+                                logging.error(f"Error while finishing runner and updating job status {runner}")
+                        except:
+                            logging.error(f"Error while finishing runner and updating job status {runner}\n:{format_exc()}")
+            for runner in finished_runners:
+                logging.info(f"Removing completed runner {runner}")
+                with self.orchestrator.runner_lock:
+                    self.orchestrator.runners.remove(runner)
 
     def run_worker(self):
         """Intended to be running as a thread."""
         logging.info("Starting worker thread.")
         while self.started:
             self.server_worker()
-            time.sleep(1)
+            time.sleep(.5)
 
     def __del__(self):
         self.stop()
@@ -221,6 +274,7 @@ class Server:
         self.app.register_callsigns(self.callsign)
         self.started = True
         if self.orchestrator is not None:
+            logging.info(f"Starting orchestrator {self.orchestrator}")
             self.orchestrator.start()
         self.worker_thread = Thread(target=self.run_worker)
         self.worker_thread.start()
@@ -250,12 +304,23 @@ class TestServer(Server):
     def __init__(self, server_callsign: str, data_dir: str = None, zeo: bool = True):
         super().__init__('localhost', 8000, server_callsign, data_dir=data_dir, zeo=zeo)
         self._data_pid = 1
+        self._file_traffic_dir = tempfile.mkdtemp()
+        self._file_traffic_thread = None
 
     def start(self):
+        if self.orchestrator is not None:
+            self.orchestrator.start()
         self.start_db()
+        self.started = True
+        self.worker_thread = Thread(target=self.run_worker)
+        self.worker_thread.start()
 
     def stop(self):
+        self.started = False
+        if self.orchestrator is not None:
+            self.orchestrator.stop()
         self.stop_db()
+        rmtree(self._file_traffic_dir)
 
     def data_pid(self) -> int:
         old = self._data_pid
