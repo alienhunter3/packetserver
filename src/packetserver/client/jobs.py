@@ -1,7 +1,8 @@
 from packetserver.client import Client
-from packetserver.common import Request, Response
+from packetserver.common import Request, Response, PacketServerConnection
 from typing import Union, Optional
 import datetime
+import time
 
 class JobWrapper:
     def __init__(self, data: dict):
@@ -50,19 +51,29 @@ class JobWrapper:
         return datetime.datetime.fromisoformat(self.data['created_at'])
 
     @property
-    def started(self) -> datetime.datetime:
-        return datetime.datetime.fromisoformat(self.data['started_at'])
+    def started(self) -> Optional[datetime.datetime]:
+        if not self.data['created_at']:
+            return None
+        return datetime.datetime.fromisoformat(self.data['created_at'])
 
     @property
-    def finished(self) -> datetime.datetime:
+    def finished(self) -> Optional[datetime.datetime]:
+        if not self.data['finished_at']:
+            return None
         return datetime.datetime.fromisoformat(self.data['finished_at'])
+
+    @property
+    def is_finished(self) -> bool:
+        if self.finished is not None:
+            return True
+        return False
 
     @property
     def id(self) -> int:
         return self.data['id']
 
-
-
+    def __repr__(self):
+        return f"<Job {self.id} - {self.owner} - {self.status}>"
 
 def send_job(client: Client, bbs_callsign: str, cmd: Union[str, list]) -> int:
     """Send a job using client to bbs_callsign with args cmd. Return remote job_id."""
@@ -83,3 +94,31 @@ def get_job_id(client: Client, bbs_callsign: str, job_id: int, get_data=True) ->
     if response.status_code != 200:
         raise RuntimeError(f"Sending job failed: {response.status_code}: {response.payload}")
     return JobWrapper(response.payload)
+
+class JobSession:
+    def __init__(self, client: Client, bbs_callsign: str, default_timeout: int = 300, stutter: int = 3):
+        self.client = client
+        self.bbs = bbs_callsign
+        self.timeout = default_timeout
+        self.stutter = stutter
+
+    def connect(self) -> PacketServerConnection:
+        return self.client.new_connection(self.bbs)
+
+    def send(self, cmd: Union[str, list]) -> int:
+        return send_job(self.client, self.bbs, cmd)
+
+    def get_id(self, jid: int) -> JobWrapper:
+        return get_job_id(self.client, self.bbs, jid)
+
+    def run_job(self, cmd: Union[str, list]) -> JobWrapper:
+        jid = self.send(cmd)
+        time.sleep(self.stutter)
+        j = self.get_id(jid)
+        while not j.is_finished:
+            time.sleep(self.stutter)
+            j = self.get_id(jid)
+        return j
+
+
+
