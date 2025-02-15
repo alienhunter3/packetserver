@@ -50,8 +50,12 @@ class Client:
         if not ax25.Address.valid_call(dest):
             raise ValueError(f"Provided destination callsign '{dest}' is invalid.")
         conn =  self.app.open_connection(0, self.callsign, dest)
-        logging.debug("Allowing connection to stabilize for 3 seconds")
-        time.sleep(8)
+        while conn.state.name != "CONNECTED":
+            if conn.state.name in ['DISCONNECTED', 'DISCONNECTING']:
+                raise RuntimeError("Connection disconnected unexpectedly.")
+            time.sleep(.1)
+        logging.debug("Allowing connection to stabilize for 10 seconds")
+        time.sleep(10)
         return conn
 
     def send_and_receive(self, req: Request, conn: PacketServerConnection, timeout: int = 300) -> Optional[Response]:
