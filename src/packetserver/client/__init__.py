@@ -36,6 +36,15 @@ class Client:
         else:
             return self.app._engine._active_handler._handlers[1]._connection_map._connections
 
+    def connection_for(self, callsign: str):
+        if not ax25.Address.valid_call(callsign):
+            raise ValueError("Must supply a valid callsign.")
+        callsign = callsign.upper().strip()
+        for key in self.connections:
+            if key.split(1) == callsign:
+                return self.connections['key']
+        return self.new_connection(callsign)
+
     def stop(self):
         self.started = False
         self.clear_connections()
