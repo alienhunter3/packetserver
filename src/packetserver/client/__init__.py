@@ -40,15 +40,19 @@ class Client:
         self.started = True
 
     def clear_connections(self):
+        cm = self.app._engine._active_handler._handlers[1]._connection_map
         for key in cm._connections.keys():
             cm._connections[key].close()
 
-    def new_connection(self, dest: str):
+    def new_connection(self, dest: str) -> PacketServerConnection:
         if not self.started:
             raise RuntimeError("Must start client before creating connections.")
         if not ax25.Address.valid_call(dest):
             raise ValueError(f"Provided destination callsign '{dest}' is invalid.")
-        return self.app.open_connection(0, self.callsign, dest)
+        conn =  self.app.open_connection(0, self.callsign, dest)
+        logging.debug("Allowing connection to stabilize for 3 seconds")
+        time.sleep(8)
+        return conn
 
     def send_and_receive(self, req: Request, conn: PacketServerConnection, timeout: int = 300) -> Optional[Response]:
         if conn.state.name != "CONNECTED":
@@ -79,8 +83,6 @@ class Client:
                 logging.error(f"Connection {conn} disconnected.")
                 return None
 
-        logging.debug("Allowing connection to stabilize for 3 seconds")
-        time.sleep(3)
         remaining_time = int((cutoff_date - datetime.datetime.now()).total_seconds()) + 1
         if remaining_time <= 0:
             logging.debug("Connection attempt timed out.")
