@@ -96,8 +96,8 @@ class Client:
             return Response(msg)
         return None
 
-    #def send_receive_callsign(self, req: Request, callsign: str, timeout: int = 300) -> Optional[Response]:
-    #    for conn in self.connection_map
+    def send_receive_callsign(self, req: Request, callsign: str, timeout: int = 300) -> Optional[Response]:
+        return self.send_and_receive(req, self.connection_for(callsign), timeout=timeout)
 
     def single_connect_send_receive(self, dest: str, req: Request, timeout: int = 300) -> Optional[Response]:
         conn = self.new_connection(dest)
