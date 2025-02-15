@@ -25,10 +25,16 @@ class Client:
         self.started = False
         signal.signal(signal.SIGINT, self.exit_gracefully)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
-        self.connection_map = None
 
     def exit_gracefully(self, signum, frame):
         self.stop()
+
+    @property
+    def connections(self) -> dict:
+        if not self.started:
+            return {}
+        else:
+            return self.app._engine._active_handler._handlers[1]._connection_map._connections
 
     def stop(self):
         self.started = False
@@ -58,8 +64,8 @@ class Client:
                 raise RuntimeError("Connection disconnected unexpectedly.")
             time.sleep(.1)
         logging.debug(f"Connection to {dest} ready.")
-        logging.debug("Allowing connection to stabilize for 5 seconds")
-        time.sleep(5)
+        logging.debug("Allowing connection to stabilize for 8 seconds")
+        time.sleep(8)
         return conn
 
     def send_and_receive(self, req: Request, conn: PacketServerConnection, timeout: int = 300) -> Optional[Response]:
