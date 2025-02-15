@@ -2,8 +2,7 @@ import datetime
 import pe.app
 from ZEO.asyncio.server import new_connection
 
-from packetserver.common import Response, Message, Request, PacketServerConnection, send_response, send_blank_response, \
-    DummyPacketServerConnection
+from packetserver.common import Response, Message, Request, PacketServerConnection, send_response, send_blank_response
 import ax25
 import logging
 import signal
