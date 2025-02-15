@@ -11,7 +11,7 @@ class JobWrapper:
         self.data = data
         self.artifacts = {}
         for i in data['artifacts']:
-            self.artifacts[i[0]] = self.artifacts[i][1]
+            self.artifacts[i[0]] = i[1]
 
     @property
     def return_code(self) -> int:
