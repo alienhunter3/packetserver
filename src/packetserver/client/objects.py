@@ -76,7 +76,8 @@ def post_file(client: Client, bbs_callsign: str, file_path: str, private=True, n
     data = open(file_path, mode).read()
     return post_object(client, bbs_callsign, obj_name, data, private=private)
 
-def get_object_by_uuid(client: Client, bbs_callsign: str, uuid: Union[str, bytes, UUID, int]):
+def get_object_by_uuid(client: Client, bbs_callsign: str, uuid: Union[str, bytes, UUID, int],
+                       include_data=True)  -> ObjectWrapper:
     if type(uuid) is str:
         uid = UUID(uuid)
     elif type(uuid) is bytes:
@@ -89,6 +90,8 @@ def get_object_by_uuid(client: Client, bbs_callsign: str, uuid: Union[str, bytes
         raise ValueError("uuid must represent a UUID object")
 
     req = Request.blank()
+    if include_data:
+        req.set_var('fetch', 1)
     req.path = "object"
     req.set_var('uuid', uid.bytes)
     req.method = Request.Method.GET
