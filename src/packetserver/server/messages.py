@@ -346,10 +346,15 @@ def handle_messages_since(req: Request, conn: PacketServerConnection, db: ZODB.D
     response.payload = msg_return
     send_response(conn, response, req)
 
+def handle_message_get_id(req: Request, conn: PacketServerConnection, db: ZODB.DB):
+    # TODO message get specific by uuid
+    pass
 
 def handle_message_get(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     if re.match(since_regex,req.path):
         return handle_messages_since(req, conn, db)
+    elif 'id' in req.vars:
+        return handle_message_get_id(req, conn, db)
     opts = parse_display_options(req)
     username = ax25.Address(conn.remote_callsign).call.upper().strip() 
     msg_return = []

@@ -14,6 +14,9 @@ class UserWrapper:
                 raise ValueError("Data dict was not an object dictionary.")
         self.data = data
 
+    def __repr__(self):
+        return f"<UserWrapper: {self.username}>"
+
     @property
     def socials(self) -> list[str]:
         return self.data['socials']
