@@ -16,7 +16,7 @@ from shutil import rmtree
 from threading import Thread
 
 class Client:
-    def __init__(self, pe_server: str, port: int, client_callsign: str):
+    def __init__(self, pe_server: str, port: int, client_callsign: str, keep_log=False):
         if not ax25.Address.valid_call(client_callsign):
             raise ValueError(f"Provided callsign '{client_callsign}' is invalid.")
         self.pe_server = pe_server
@@ -26,6 +26,8 @@ class Client:
         self.started = False
         self._connection_locks = {}
         self.lock_locker = Lock()
+        self.keep_log = keep_log
+        self.request_log = []
         signal.signal(signal.SIGINT, self.exit_gracefully)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
 
@@ -120,6 +122,8 @@ class Client:
             while datetime.datetime.now() < cutoff_date:
                 if conn.state.name != "CONNECTED":
                     logging.error(f"Connection {conn} disconnected.")
+                    if self.keep_log:
+                        self.request_log.append((req,None))
                     return None
                 try:
                     unpacked = conn.data.unpack()
@@ -127,7 +131,11 @@ class Client:
                     time.sleep(.1)
                     continue
                 msg = Message.partial_unpack(unpacked)
-                return Response(msg)
+                resp =  Response(msg)
+                if self.keep_log:
+                    self.request_log.append((req, resp))
+                return resp
+            self.request_log.append((req, None))
             return None
 
     def send_receive_callsign(self, req: Request, callsign: str, timeout: int = 300) -> Optional[Response]:
