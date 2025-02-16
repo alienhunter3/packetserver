@@ -47,6 +47,8 @@ class Server:
         self.started = False
         self.orchestrator = None
         self.worker_thread = None
+        self.check_job_queue = True
+        self.last_check_job_queue = datetime.datetime.now()
         if data_dir:
             data_path = Path(data_dir)
         else:
@@ -113,6 +115,10 @@ class Server:
     @property
     def data_file(self) -> str:
         return str(Path(self.home_dir).joinpath('data.zopedb'))
+
+    def ping_job_queue(self):
+        self.check_job_queue = True
+        self.last_check_job_queue = datetime.datetime.now()
 
     def server_connection_bouncer(self, conn: PacketServerConnection):
         logging.debug("new connection bouncer checking user status")
@@ -184,6 +190,7 @@ class Server:
                     connection.send_data(b"BAD REQUEST. DID NOT RECEIVE A REQUEST MESSAGE.")
                 logging.debug(f"attempting to handle request {request}")
                 self.handle_request(request, connection)
+                self.ping_job_queue()
                 logging.debug("request handled")
 
     def server_receiver(self, conn: PacketServerConnection):
@@ -201,8 +208,10 @@ class Server:
         if not self.started:
             return
         # Add things to do here:
-
-        if (self.orchestrator is not None) and self.orchestrator.started:
+        now = datetime.datetime.now()
+        if (now - self.last_check_job_queue).total_seconds() > 60:
+            self.ping_job_queue()
+        if (self.orchestrator is not None) and self.orchestrator.started and self.check_job_queue:
             with self.db.transaction() as storage:
                 # queue as many jobs as possible
                 while self.orchestrator.runners_available():
@@ -222,6 +231,10 @@ class Server:
                             logging.info(f"Started job {job}")
                     else:
                         break
+                if len(storage.root.job_queue) == 0:
+                    self.check_job_queue = False
+                else:
+                    self.ping_job_queue()
 
             finished_runners = []
             for runner in self.orchestrator.runners:

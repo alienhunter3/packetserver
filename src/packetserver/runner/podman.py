@@ -165,6 +165,8 @@ class PodmanOrchestrator(Orchestrator):
         self.started = False
         self.user_containers = {}
         self.manager_thread = None
+        self._client = None
+        self._five_min_ticker = 600
 
         if uri:
             self.uri = uri
@@ -174,8 +176,9 @@ class PodmanOrchestrator(Orchestrator):
         if uri_parsed.scheme == "unix":
             if not os.path.exists(uri_parsed.path):
                 raise FileNotFoundError(f"Podman socket not found: {self.uri}")
-
-        logging.debug(f"Testing podman socket. Version: {self.client.version()}")
+        test_client = self.new_client()
+        logging.debug(f"Testing podman socket. Version: {test_client.info()}")
+        self._client = None
 
         self.username_containers = {}
         if options:
@@ -185,8 +188,13 @@ class PodmanOrchestrator(Orchestrator):
                                   container_keepalive=300, name_prefix="packetserver_")
 
     @property
-    def client(self):
-        return podman.PodmanClient(base_url=self.uri)
+    def client(self) -> Optional[podman.PodmanClient]:
+        return self._client
+
+    def new_client(self) -> podman.PodmanClient:
+        cli =  podman.PodmanClient(base_url=self.uri)
+        self._client = cli
+        return cli
 
     def add_file_to_user_container(self, username: str, data: bytes, path: str, root_owned=False):
         cli = self.client
@@ -416,7 +424,10 @@ class PodmanOrchestrator(Orchestrator):
                 if not r.is_finished():
                     self.touch_user_container(r.username)
             self.clean_containers()
-            self.clean_orphaned_containers()
+
+            if self._five_min_ticker >= 600:
+                self.clean_orphaned_containers()
+                self._five_min_ticker = 0
 
     def manager(self):
         logging.debug("Starting podman orchestrator thread.")
@@ -427,7 +438,9 @@ class PodmanOrchestrator(Orchestrator):
 
     def start(self):
         if not self.started:
+            self.new_client()
             self.clean_orphaned_containers()
+            self._five_min_ticker = 0
             self.started = True
             self.manager_thread = Thread(target=self.manager)
             self.manager_thread.start()
@@ -438,6 +451,7 @@ class PodmanOrchestrator(Orchestrator):
 
     def stop(self):
         logging.debug("Stopping podman orchestrator.")
+        self._client = None
         self.started = False
         cli = self.client
         self.user_containers = {}
