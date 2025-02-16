@@ -49,12 +49,13 @@ class Bulletin(persistent.Persistent):
     def from_dict(cls, bulletin_dict: dict) -> Self:
         return Bulletin(bulletin_dict['author'], bulletin_dict['subject'], bulletin_dict['body'])
 
-    def write_new(self, db_root: PersistentMapping):
+    def write_new(self, db_root: PersistentMapping) -> int:
         if self.id is None:
             self.id = get_new_bulletin_id(db_root)
             self.created_at = datetime.datetime.now(datetime.UTC)
             self.updated_at = datetime.datetime.now(datetime.UTC)
             db_root['bulletins'].append(self)
+        return self.id
 
     def update_subject(self, new_text: str):
         self.subject = new_text
@@ -128,8 +129,8 @@ def handle_bulletin_post(req: Request, conn: PacketServerConnection, db: ZODB.DB
     b = Bulletin(author, str(req.payload['subject']), str(req.payload['body']))
     response = Response.blank()
     with db.transaction() as db:
-        b.write_new(db.root())
-    send_blank_response(conn, req, status_code=201)
+        bid = b.write_new(db.root())
+    send_blank_response(conn, req, status_code=201, payload={'bulletin_id': bid})
 
 def handle_bulletin_update(req: Request, conn: PacketServerConnection, db: ZODB.DB): # TODO
     response = Response.blank()
