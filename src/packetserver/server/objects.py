@@ -173,8 +173,9 @@ class Object(persistent.Persistent):
     @classmethod
     def from_dict(cls, obj: dict) -> Self:
         o = Object(name=obj['name'])
-        if obj['uuid_bytes']:
-            o._uuid = UUID(bytes=obj['uuid_bytes'])
+        if 'uuid_bytes' in obj:
+            if obj['uuid_bytes']:
+                o._uuid = UUID(bytes=obj['uuid_bytes'])
         o.private = obj['private']
         o.data = obj['data']
         o._binary = obj['binary']

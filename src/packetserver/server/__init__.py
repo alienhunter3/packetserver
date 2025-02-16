@@ -170,7 +170,7 @@ class Server:
             logging.debug("Connection marked as closing. Ignoring it.")
             return
         req_root_path = req.path.split("/")[0]
-        if 'quick' in req.vars:
+        if ('quick' in req.vars) or (req_root_path == "job"):
             logging.debug("Setting quick job timer for a quick job.")
             self.job_check_interval = 8
             self.quick_job = True
