@@ -11,6 +11,13 @@ class BulletinWrapper:
                 raise ValueError("Was not given a bulletin dictionary.")
         self.data = data
 
+    def __repr__(self):
+        return f"<Bulletin {self.id} - {self.author}>"
+
+    @property
+    def id(self) -> int:
+        return self.data['id']
+
     @property
     def created(self) -> datetime.datetime:
         return datetime.datetime.fromisoformat(self.data['created_at'])
