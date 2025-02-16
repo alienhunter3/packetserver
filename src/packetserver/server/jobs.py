@@ -173,6 +173,7 @@ class Job(persistent.Persistent):
             owner = self.owner.upper().strip()
             if owner not in db_root['user_jobs']:
                 db_root['user_jobs'][owner] = PersistentList()
+            db_root['user_jobs'].append(self.id)
             db_root['jobs'][self.id] = self
             db_root['job_queue'].append(self.id)
         return self.id
