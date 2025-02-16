@@ -8,6 +8,7 @@ import logging
 import signal
 import time
 from threading import Lock
+from msgpack import Unpacker
 from msgpack.exceptions import OutOfData
 from typing import Callable, Self, Union, Optional
 from traceback import  format_exc
@@ -117,6 +118,7 @@ class Client:
             if dest not in self._connection_locks:
                 self._connection_locks[dest] = Lock()
         with self._connection_locks[dest]:
+            conn.data = Unpacker()
             conn.send_data(req.pack())
             cutoff_date = datetime.datetime.now() + datetime.timedelta(seconds=timeout)
             logging.debug(f"{datetime.datetime.now()}: Request timeout date is {cutoff_date}")
