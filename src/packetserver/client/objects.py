@@ -103,3 +103,30 @@ def get_object_by_uuid(client: Client, bbs_callsign: str, uuid: Union[str, bytes
         raise RuntimeError(f"Sending job failed: {response.status_code}: {response.payload}")
     return ObjectWrapper(response.payload)
 
+def get_user_objects(client: Client, bbs_callsign: str, limit: int = 10, include_data: bool = True, search: str = None,
+                     reverse: bool = False, sort_date: bool = False, sort_name: bool = False, sort_size: bool = False)\
+        -> list[ObjectWrapper]:
+
+    req = Request.blank()
+    if include_data:
+        req.set_var('fetch', 1)
+    if sort_date:
+        req.set_var('sort', 'date')
+    if sort_size:
+        req.set_var('sort', 'size')
+    if sort_name:
+        req.set_var('sort', 'name')
+    req.set_var('reverse', reverse)
+    req.set_var('limit', limit)
+    if search is not None:
+        req.set_var('search', str(search))
+    req.path = "object"
+    req.method = Request.Method.GET
+    response = client.send_receive_callsign(req, bbs_callsign)
+    if response.status_code != 200:
+        raise RuntimeError(f"Sending job failed: {response.status_code}: {response.payload}")
+    out_list = []
+    for o in response.payload:
+        out_list.append(ObjectWrapper(o))
+    return out_list
+
