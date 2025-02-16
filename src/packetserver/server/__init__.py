@@ -50,6 +50,7 @@ class Server:
         self.check_job_queue = True
         self.last_check_job_queue = datetime.datetime.now()
         self.job_check_interval = 60
+        self.quick_job = False
         if data_dir:
             data_path = Path(data_dir)
         else:
@@ -120,6 +121,11 @@ class Server:
     def ping_job_queue(self):
         self.check_job_queue = True
         self.last_check_job_queue = datetime.datetime.now()
+        if self.quick_job:
+            self.job_check_interval = 5
+            self.quick_job = False
+        else:
+            self.job_check_interval = 60
 
     def server_connection_bouncer(self, conn: PacketServerConnection):
         logging.debug("new connection bouncer checking user status")
@@ -164,7 +170,8 @@ class Server:
             return
         req_root_path = req.path.split("/")[0]
         if 'quick' in req.vars:
-            self.job_check_interval = 10
+            self.job_check_interval = 8
+            self.quick_job = True
         if req_root_path in self.handlers:
             logging.debug(f"found handler for req {req}")
             self.handlers[req_root_path](req, conn, self.db)
