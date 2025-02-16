@@ -103,11 +103,12 @@ def get_job_id(client: Client, bbs_callsign: str, job_id: int, get_data=True) ->
     return JobWrapper(response.payload)
 
 class JobSession:
-    def __init__(self, client: Client, bbs_callsign: str, default_timeout: int = 300, stutter: int = 1):
+    def __init__(self, client: Client, bbs_callsign: str, default_timeout: int = 300, stutter: int = 2):
         self.client = client
         self.bbs = bbs_callsign
         self.timeout = default_timeout
         self.stutter = stutter
+        self.job_log = []
 
     def connect(self) -> PacketServerConnection:
         return self.client.new_connection(self.bbs)
@@ -125,6 +126,7 @@ class JobSession:
         while not j.is_finished:
             time.sleep(self.stutter)
             j = self.get_id(jid)
+        self.job_log.append(j)
         return j
 
 
