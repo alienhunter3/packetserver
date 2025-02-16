@@ -119,6 +119,7 @@ class Client:
         with self._connection_locks[dest]:
             conn.send_data(req.pack())
             cutoff_date = datetime.datetime.now() + datetime.timedelta(seconds=timeout)
+            logging.debug(f"{datetime.datetime.now()}: Request timeout date is {cutoff_date}")
             while datetime.datetime.now() < cutoff_date:
                 if conn.state.name != "CONNECTED":
                     logging.error(f"Connection {conn} disconnected.")
@@ -135,6 +136,7 @@ class Client:
                 if self.keep_log:
                     self.request_log.append((req, resp))
                 return resp
+            logging.warning(f"{datetime.datetime.now()}: Request {req} timed out.")
             self.request_log.append((req, None))
             return None
 
