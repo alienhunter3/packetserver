@@ -394,9 +394,10 @@ def handle_object_delete(req: Request, conn: PacketServerConnection, db: ZODB.DB
             try:
                 u_obj = UUID(str(uid))
             except ValueError:
-                send_blank_response(conn, req, status_code=400)
+                send_blank_response(conn, req, status_code=400, payload='badly formatted uuid')
+                return
         with db.transaction() as db:
-            obj = Object.get_object_by_uuid(uid, db.root())
+            obj = Object.get_object_by_uuid(u_obj, db.root())
             user = User.get_user_by_username(username, db.root())
             if user.uuid != obj.owner:
                 send_blank_response(conn, req, status_code=401)
