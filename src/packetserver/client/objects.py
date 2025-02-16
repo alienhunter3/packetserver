@@ -16,6 +16,10 @@ class ObjectWrapper:
         self.obj_data = data
 
     @property
+    def name(self) -> Optional[str]:
+        return self.obj_data['name']
+
+    @property
     def size(self) -> int:
         return len(self.obj_data['data'])
 
