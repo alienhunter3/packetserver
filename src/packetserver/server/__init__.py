@@ -49,6 +49,7 @@ class Server:
         self.worker_thread = None
         self.check_job_queue = True
         self.last_check_job_queue = datetime.datetime.now()
+        self.job_check_interval = 60
         if data_dir:
             data_path = Path(data_dir)
         else:
@@ -162,6 +163,8 @@ class Server:
             logging.debug("Connection marked as closing. Ignoring it.")
             return
         req_root_path = req.path.split("/")[0]
+        if 'quick' in req.vars:
+            self.job_check_interval = 10
         if req_root_path in self.handlers:
             logging.debug(f"found handler for req {req}")
             self.handlers[req_root_path](req, conn, self.db)
@@ -209,7 +212,7 @@ class Server:
             return
         # Add things to do here:
         now = datetime.datetime.now()
-        if (now - self.last_check_job_queue).total_seconds() > 60:
+        if (now - self.last_check_job_queue).total_seconds() > self.job_check_interval:
             self.ping_job_queue()
         if (self.orchestrator is not None) and self.orchestrator.started and self.check_job_queue:
             with self.db.transaction() as storage:
