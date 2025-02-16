@@ -235,7 +235,7 @@ class PodmanOrchestrator(Orchestrator):
                                             command=podman_run_command,
                                             environment=container_env, user="root")
         con.start()
-        logging.debug(f"Container started for {username}")
+        logging.debug(f"Container started for {username} from image {self.opts.image_name}")
         started_at = datetime.datetime.now()
         logging.debug(f"Container state: \n{con.inspect()['State']}")
         while con.inspect()['State']['Status'] not in ['exited', 'running']:
