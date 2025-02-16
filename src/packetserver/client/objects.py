@@ -104,7 +104,7 @@ def get_object_by_uuid(client: Client, bbs_callsign: str, uuid: Union[str, bytes
     req.method = Request.Method.GET
     response = client.send_receive_callsign(req, bbs_callsign)
     if response.status_code != 200:
-        raise RuntimeError(f"Sending job failed: {response.status_code}: {response.payload}")
+        raise RuntimeError(f"GET object {uid} failed: {response.status_code}: {response.payload}")
     return ObjectWrapper(response.payload)
 
 def get_user_objects(client: Client, bbs_callsign: str, limit: int = 10, include_data: bool = True, search: str = None,
@@ -128,7 +128,7 @@ def get_user_objects(client: Client, bbs_callsign: str, limit: int = 10, include
     req.method = Request.Method.GET
     response = client.send_receive_callsign(req, bbs_callsign)
     if response.status_code != 200:
-        raise RuntimeError(f"Sending job failed: {response.status_code}: {response.payload}")
+        raise RuntimeError(f"Listing objects failed: {response.status_code}: {response.payload}")
     out_list = []
     for o in response.payload:
         out_list.append(ObjectWrapper(o))
@@ -154,3 +154,7 @@ def delete_object_by_uuid(client: Client, bbs_callsign: str, uuid: Union[str, by
     if response.status_code != 200:
         raise RuntimeError(f"Deleting object {uid} failed: {response.status_code}: {response.payload}")
     return True
+
+def update_object_by_uuid():
+    # TODO update object by uuid client
+    pass
