@@ -22,17 +22,20 @@ def get_user_db(username: str, db: ZODB.DB) -> dict:
             else:
                 o.data = base64.b64encode(o.data.encode()).decode()
             udb['objects'][o] = db_conn.root.objects[o].to_dict()
-        for m in db_conn.root.messages[username]:
-            for a in m.attachments:
-                if type(a.data) is bytes:
-                    a.data = base64.b64encode(a.data).decode()
-                else:
-                    a.data = base64.b64encode(a.data.encode()).decode()
-            udb['messages'].append(m.to_dict())
+        if user in db_conn.root.messages:
+            for m in db_conn.root.messages[username]:
+                for a in m.attachments:
+                    if type(a.data) is bytes:
+                        a.data = base64.b64encode(a.data).decode()
+                    else:
+                        a.data = base64.b64encode(a.data.encode()).decode()
+                udb['messages'].append(m.to_dict())
         for b in db_conn.root.bulletins:
             udb['bulletins'].append(b.to_dict())
 
-        # TODO pack jobs into output
+        if username in db_conn.root.user_jobs:
+            for jid in db_conn.root.user_jobs[username]:
+                udb['jobs'].append(db_conn.root.jobs[jid].to_dict(binary_safe=True))
 
     return udb
 
