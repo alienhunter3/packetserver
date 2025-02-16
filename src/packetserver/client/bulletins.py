@@ -50,3 +50,17 @@ def get_bulletin_by_id(client: Client, bbs_callsign: str, bid: int) -> BulletinW
     if response.status_code != 200:
         raise RuntimeError(f"Sending job failed: {response.status_code}: {response.payload}")
     return BulletinWrapper(response.payload)
+
+def get_bulletins_recent(client: Client, bbs_callsign: str, limit: int = None) -> list[BulletinWrapper]:
+    req = Request.blank()
+    req.path = "bulletin"
+    req.method = Request.Method.GET
+    if limit is not None:
+        req.set_var('limit', limit)
+    response = client.send_receive_callsign(req, bbs_callsign)
+    if response.status_code != 200:
+        raise RuntimeError(f"Sending job failed: {response.status_code}: {response.payload}")
+    out_list = []
+    for b in response.payload:
+        out_list.append(BulletinWrapper(b))
+    return out_list
