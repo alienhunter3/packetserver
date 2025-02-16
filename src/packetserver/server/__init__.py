@@ -214,7 +214,7 @@ class Server:
                         except:
                             logging.error(f"Error retrieving job {jid}")
                             break
-                        runner = self.orchestrator.new_runner(job.owner, job.cmd, jid)
+                        runner = self.orchestrator.new_runner(job.owner, job.cmd, jid, environment=job.env, files=job.files)
                         if runner is not None:
                             storage.root.job_queue.remove(jid)
                             job.status = JobStatus.RUNNING
