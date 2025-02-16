@@ -451,7 +451,6 @@ class PodmanOrchestrator(Orchestrator):
 
     def stop(self):
         logging.debug("Stopping podman orchestrator.")
-        self._client = None
         self.started = False
         cli = self.client
         self.user_containers = {}
@@ -461,3 +460,4 @@ class PodmanOrchestrator(Orchestrator):
             self.manager_thread.join(timeout=15)
         logging.debug("Orchestrator manager thread stopped")
         self.manager_thread = None
+        self._client = None
