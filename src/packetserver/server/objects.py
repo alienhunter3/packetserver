@@ -406,8 +406,8 @@ def handle_object_delete(req: Request, conn: PacketServerConnection, db: ZODB.DB
                 send_blank_response(conn, req, status_code=404)
                 return
             try:
-                user.remove_obj_uuid(uid)
-                del db.root.objects[uid]
+                user.remove_obj_uuid(u_obj)
+                del db.root.objects[u_obj]
             except:
                 send_blank_response(conn, req, status_code=500)
                 logging.error(f"Error handling delete:\n{format_exc()}")
