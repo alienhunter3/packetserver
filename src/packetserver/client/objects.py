@@ -41,10 +41,13 @@ class ObjectWrapper:
 
     @property
     def data(self) -> Union[str, bytes]:
+        dat = self.obj_data['data']
+        if type(dat) is str:
+            dat = dat.encode()
         if self.binary:
-            return self.obj_data['data']
+            return dat
         else:
-            return self.obj_data['data'].decode()
+            return dat.decode()
 
 
 def post_object(client: Client, bbs_callsign: str, name:str, data: Union[str, bytes, bytearray], private=True) -> UUID:
