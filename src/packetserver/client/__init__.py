@@ -36,14 +36,32 @@ class Client:
         else:
             return self.app._engine._active_handler._handlers[1]._connection_map._connections
 
-    def connection_for(self, callsign: str):
+    def connection_exists(self, callsign: str):
+        if not ax25.Address.valid_call(callsign):
+            raise ValueError("Must supply a valid callsign.")
+        callsign = callsign.upper().strip()
+        for key in self.connections.keys():
+            if key.split(":")[1] == callsign:
+                return True
+        return False
+
+    def connection_callsign(self, callsign: str):
         if not ax25.Address.valid_call(callsign):
             raise ValueError("Must supply a valid callsign.")
         callsign = callsign.upper().strip()
         for key in self.connections.keys():
             if key.split(":")[1] == callsign:
                 return self.connections[key]
-        return self.new_connection(callsign)
+        return None
+
+    def connection_for(self, callsign: str):
+        if not ax25.Address.valid_call(callsign):
+            raise ValueError("Must supply a valid callsign.")
+        callsign = callsign.upper().strip()
+        if self.connection_exists(callsign):
+            return self.connection_callsign(callsign)
+        else:
+            return self.new_connection(callsign)
 
     def stop(self):
         self.started = False
@@ -67,7 +85,11 @@ class Client:
             raise RuntimeError("Must start client before creating connections.")
         if not ax25.Address.valid_call(dest):
             raise ValueError(f"Provided destination callsign '{dest}' is invalid.")
-        conn =  self.app.open_connection(0, self.callsign, dest)
+        conn = self.connection_callsign(dest.upper())
+        if conn is not None:
+            return conn
+
+        conn =  self.app.open_connection(0, self.callsign, dest.upper())
         while conn.state.name != "CONNECTED":
             if conn.state.name in ['DISCONNECTED', 'DISCONNECTING']:
                 raise RuntimeError("Connection disconnected unexpectedly.")
