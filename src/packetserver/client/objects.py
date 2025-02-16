@@ -134,3 +134,23 @@ def get_user_objects(client: Client, bbs_callsign: str, limit: int = 10, include
         out_list.append(ObjectWrapper(o))
     return out_list
 
+def delete_object_by_uuid(client: Client, bbs_callsign: str, uuid: Union[str, bytes, UUID, int])  -> bool:
+    if type(uuid) is str:
+        uid = UUID(uuid)
+    elif type(uuid) is bytes:
+        uid = UUID(bytes=uuid)
+    elif type(uuid) is UUID:
+        uid = uuid
+    elif type(uuid) is int:
+        uid = UUID(int=uuid)
+    else:
+        raise ValueError("uuid must represent a UUID object")
+
+    req = Request.blank()
+    req.path = "object"
+    req.set_var('uuid', uid.bytes)
+    req.method = Request.Method.DELETE
+    response = client.send_receive_callsign(req, bbs_callsign)
+    if response.status_code != 200:
+        raise RuntimeError(f"Deleting object {uid} failed: {response.status_code}: {response.payload}")
+    return True
