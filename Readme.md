@@ -16,16 +16,16 @@ Features completed:
 Features in-progress and working to some extent:
 
 - Send and searching messages to/from other users
-- object storage/retrieval
-- running user-defined scripts or shell commands on the server in containers with podman/docker
 - Posting, retrieving, and editing public bulletins
-- Partial Python client wrapper library for the RF 'API'
+- Partial Python client wrapper library for the complete RF 'API'
 
 I'm considering several other features like:
 
 - Useful documentation of any variety..
 - RF beacon
-- administration over RF
+- bbs administration over RF
+- cli bbs administration tools
+  - Right now, just edit the database with a python interpreter
 - possibly a cron system (again in containers for safety)
 - maybe an e-mail or an sms gateway (though clever user uploaded scripts could do this instead)
 - maybe APRS integration through APRS-IS
