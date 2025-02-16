@@ -279,7 +279,7 @@ def handle_new_job_post(req: Request, conn: PacketServerConnection, db: ZODB.DB)
     if 'env' in req.payload:
         if type(req.payload['env']) is dict:
             for key in req.payload['env']:
-                env[key] = req.payload[key]
+                env[key] = req.payload['env'][key]
     job = Job(req.payload['cmd'], owner=username, env=env, files=files)
     with db.transaction() as storage:
         try:
