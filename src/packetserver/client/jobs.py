@@ -93,6 +93,29 @@ def send_job(client: Client, bbs_callsign: str, cmd: Union[str, list], db: bool 
         raise RuntimeError(f"Sending job failed: {response.status_code}: {response.payload}")
     return response.payload['job_id']
 
+def send_job_quick(client: Client, bbs_callsign: str, cmd: Union[str, list], db: bool = False, env: dict = None,
+             files: dict = None) -> JobWrapper:
+    """Send a job using client to bbs_callsign with args cmd. Wait for quick job to return job results."""
+    req = Request.blank()
+    req.path = "job"
+    req.payload = {'cmd': cmd}
+    req.set_var('quick', True)
+    if db:
+        req.payload['db'] = ''
+    if env is not None:
+        req.payload['env']= env
+    if files is not None:
+        req.payload['files'] = files
+    req.method = Request.Method.POST
+    response = client.send_receive_callsign(req, bbs_callsign)
+    if response.status_code == 200:
+        return JobWrapper(response.payload)
+    elif response.status_code == 202:
+        raise RuntimeError(f"Quick Job timed out. Job ID: {response.payload}")
+    else:
+        raise RuntimeError(f"Waiting for quick job failed: {response.status_code}: {response.payload}")
+
+
 def get_job_id(client: Client, bbs_callsign: str, job_id: int, get_data=True) -> JobWrapper:
     req = Request.blank()
     req.path = f"job/{job_id}"
@@ -116,18 +139,27 @@ class JobSession:
     def send(self, cmd: Union[str, list], db: bool = False, env: dict = None, files: dict = None) -> int:
         return send_job(self.client, self.bbs, cmd, db=db, env=env, files=files)
 
+    def send_quick(self, cmd: Union[str, list], db: bool = False, env: dict = None, files: dict = None) -> JobWrapper:
+        return send_job_quick(self.client, self.bbs, cmd, db=db, env=env, files=files)
+
     def get_id(self, jid: int) -> JobWrapper:
         return get_job_id(self.client, self.bbs, jid)
 
-    def run_job(self, cmd: Union[str, list], db: bool = False, env: dict = None, files: dict = None) -> JobWrapper:
-        jid = self.send(cmd, db=db, env=env, files=files)
-        time.sleep(self.stutter)
-        j = self.get_id(jid)
-        while not j.is_finished:
+    def run_job(self, cmd: Union[str, list], db: bool = False, env: dict = None, files: dict = None,
+                quick: bool = False) -> JobWrapper:
+        if quick:
+            j = send_job_quick(cmd, db=db, env=env, files=files)
+            self.job_log.append(j)
+            return j
+        else:
+            jid = self.send(cmd, db=db, env=env, files=files)
             time.sleep(self.stutter)
             j = self.get_id(jid)
-        self.job_log.append(j)
-        return j
+            while not j.is_finished:
+                time.sleep(self.stutter)
+                j = self.get_id(jid)
+            self.job_log.append(j)
+            return j
 
 
 
