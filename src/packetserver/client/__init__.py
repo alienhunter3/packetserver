@@ -91,9 +91,10 @@ class Client:
         with self.lock_locker:
             if dest.upper() not in self._connection_locks:
                 self._connection_locks[dest.upper()] = Lock()
-        conn = self.connection_callsign(dest.upper())
-        if conn is not None:
-            return conn
+        with self._connection_locks[dest.upper()]:
+            conn = self.connection_callsign(dest.upper())
+            if conn is not None:
+                return conn
 
         conn =  self.app.open_connection(0, self.callsign, dest.upper())
         while conn.state.name != "CONNECTED":

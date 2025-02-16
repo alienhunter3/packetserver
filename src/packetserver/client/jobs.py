@@ -148,7 +148,7 @@ class JobSession:
     def run_job(self, cmd: Union[str, list], db: bool = False, env: dict = None, files: dict = None,
                 quick: bool = False) -> JobWrapper:
         if quick:
-            j = send_job_quick(cmd, db=db, env=env, files=files)
+            j = self.send_quick(cmd, db=db, env=env, files=files)
             self.job_log.append(j)
             return j
         else:
