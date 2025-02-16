@@ -122,6 +122,7 @@ class Server:
         self.check_job_queue = True
         self.last_check_job_queue = datetime.datetime.now()
         if self.quick_job:
+            logging.debug("Setting the final quick job timer.")
             self.job_check_interval = 5
             self.quick_job = False
         else:
@@ -170,6 +171,7 @@ class Server:
             return
         req_root_path = req.path.split("/")[0]
         if 'quick' in req.vars:
+            logging.debug("Setting quick job timer for a quick job.")
             self.job_check_interval = 8
             self.quick_job = True
         if req_root_path in self.handlers:
