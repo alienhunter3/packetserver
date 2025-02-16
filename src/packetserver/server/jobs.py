@@ -37,9 +37,10 @@ def get_orchestrator_from_config(cfg: dict) -> Union[Orchestrator, PodmanOrchest
     if 'runner' in cfg:
         val = cfg['runner'].lower().strip()
         if val == "podman":
-            orch = PodmanOrchestrator()
             image = cfg.get('image', 'debian')
-            orch.opts.image_name = image
+            opts = PodmanOptions(default_timeout=300, max_timeout=3600, image_name=image, max_active_jobs=5,
+                                  container_keepalive=300, name_prefix="packetserver_")
+            orch = PodmanOrchestrator(options=opts)
             return orch
         else:
             raise RuntimeError("Other orchestrators not implemented yet.")
