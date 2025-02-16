@@ -75,11 +75,18 @@ class JobWrapper:
     def __repr__(self):
         return f"<Job {self.id} - {self.owner} - {self.status}>"
 
-def send_job(client: Client, bbs_callsign: str, cmd: Union[str, list]) -> int:
+def send_job(client: Client, bbs_callsign: str, cmd: Union[str, list], db: bool = False, env: dict = None,
+             files: dict = None) -> int:
     """Send a job using client to bbs_callsign with args cmd. Return remote job_id."""
     req = Request.blank()
     req.path = "job"
     req.payload = {'cmd': cmd}
+    if db:
+        req.payload['db'] = ''
+    if env is not None:
+        req.payload['env']= env
+    if files is not None:
+        req.payload['files'] = files
     req.method = Request.Method.POST
     response = client.send_receive_callsign(req, bbs_callsign)
     if response.status_code != 201:
@@ -96,7 +103,7 @@ def get_job_id(client: Client, bbs_callsign: str, job_id: int, get_data=True) ->
     return JobWrapper(response.payload)
 
 class JobSession:
-    def __init__(self, client: Client, bbs_callsign: str, default_timeout: int = 300, stutter: int = 3):
+    def __init__(self, client: Client, bbs_callsign: str, default_timeout: int = 300, stutter: int = 1):
         self.client = client
         self.bbs = bbs_callsign
         self.timeout = default_timeout
@@ -105,14 +112,14 @@ class JobSession:
     def connect(self) -> PacketServerConnection:
         return self.client.new_connection(self.bbs)
 
-    def send(self, cmd: Union[str, list]) -> int:
-        return send_job(self.client, self.bbs, cmd)
+    def send(self, cmd: Union[str, list], db: bool = False, env: dict = None, files: dict = None) -> int:
+        return send_job(self.client, self.bbs, cmd, db=db, env=env, files=files)
 
     def get_id(self, jid: int) -> JobWrapper:
         return get_job_id(self.client, self.bbs, jid)
 
-    def run_job(self, cmd: Union[str, list]) -> JobWrapper:
-        jid = self.send(cmd)
+    def run_job(self, cmd: Union[str, list], db: bool = False, env: dict = None, files: dict = None) -> JobWrapper:
+        jid = self.send(cmd, db=db, env=env, files=files)
         time.sleep(self.stutter)
         j = self.get_id(jid)
         while not j.is_finished:
