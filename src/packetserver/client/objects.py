@@ -76,5 +76,24 @@ def post_file(client: Client, bbs_callsign: str, file_path: str, private=True, n
     data = open(file_path, mode).read()
     return post_object(client, bbs_callsign, obj_name, data, private=private)
 
-def get_object_by_uuid():
-    # TODO get object uuid
+def get_object_by_uuid(client: Client, bbs_callsign: str, uuid: Union[str, bytes, UUID, int]):
+    if type(uuid) is str:
+        uid = UUID(uuid)
+    elif type(uuid) is bytes:
+        uid = UUID(bytes=uuid)
+    elif type(uuid) is UUID:
+        uid = uuid
+    elif type(uuid) is int:
+        uid = UUID(int=uuid)
+    else:
+        raise ValueError("uuid must represent a UUID object")
+
+    req = Request.blank()
+    req.path = "object"
+    req.set_var('uuid', uid.bytes)
+    req.method = Request.Method.GET
+    response = client.send_receive_callsign(req, bbs_callsign)
+    if response.status_code != 200:
+        raise RuntimeError(f"Sending job failed: {response.status_code}: {response.payload}")
+    return ObjectWrapper(response.payload)
+
