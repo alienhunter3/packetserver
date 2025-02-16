@@ -308,7 +308,7 @@ def handle_get_no_path(req: Request, conn: PacketServerConnection, db: ZODB.DB):
                     objs.append(obj)
                 else:
                     logging.debug("object private")
-                    if obj.uuid == user.uuid:
+                    if obj.owner == user.uuid:
                         logging.debug("user uuid matches object uuid")
                         objs.append(obj)
             response.payload = object_display_filter(objs, opts)
