@@ -25,11 +25,11 @@ UI packets later on..
 
 ## Requirements
 
-- A radio of some kind that can transmit on a band suitable for any AX25 packet encoding.
+- A radio of some kind that can transmit on a band suitable for any kind of AX25 packet work.
 - A way to connect the radio to a Linux machine (for hosting using the container orchestrator) or just anything that runs Python for the client. I recommend DigiRig.
 - A TNC that provides an AGWPE interface. Direwolf works; there are others for different platforms.
 - Recent Python (Python 3.11+.)
-- A fixed version of the pyham_pe package that will can properly identify incoming connections from outgoing. (https://github.com/alienhunter3/pyham_pe_bugfix_incoming_connections)
+- A version of the pyham_pe package that fixes the minor bug with incoming connections. (https://github.com/alienhunter3/pyham_pe_bugfix_incoming_connections)
 
 
 ## Features completed:
@@ -40,9 +40,9 @@ UI packets later on..
 
 ## Features in-progress and working to some extent:
 
-- Send and searching messages to/from other users
+- Sending and receiving and searching messages to/from other users
 - Posting, retrieving, and editing public bulletins
-- Partial Python client wrapper library for the complete RF 'API'
+- Python client wrapper library for the complete RF 'API'
 
 ## I'm considering several other features like:
 
