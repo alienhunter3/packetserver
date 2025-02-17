@@ -11,6 +11,7 @@ from packetserver.common import PacketServerConnection, Request, Response, Messa
 import ZODB
 import logging
 import uuid
+from traceback import format_exc
 from uuid import UUID
 from packetserver.common.util import email_valid
 from BTrees.OOBTree import TreeSet
@@ -243,8 +244,67 @@ def handle_user_get(req: Request, conn: PacketServerConnection, db: ZODB.DB):
                 response.payload = [x.to_safe_dict() for x in User.get_all_users(db.root(), limit=limit) if not x.hidden]
     send_response(conn, response, req)
 
-def handle_user_update(req: Request, conn: PacketServerConnection, db: ZODB.DB): # TODO
-    pass
+def handle_user_update(req: Request, conn: PacketServerConnection, db: ZODB.DB):
+    """
+                "status": str 300 cutoff
+            "bio": str 4k cutoff
+            "socials": list[str] each 300 cutoff
+            "email": str (must be an e-mail) validate with valid_email function from util
+            "location": str 1000 char cutoff
+    """
+    username = ax25.Address(conn.remote_callsign).call.upper().strip()
+    logging.debug(f"Handling user update request for {username}: {req.payload}")
+
+    email = None
+    bio = None
+    socials = None
+    location = None
+    status = None
+
+    # set vars
+
+    if 'bio' in req.payload:
+        bio = str(req.payload['bio'])
+
+    if 'location' in req.payload:
+        location = str(req.payload['location'])
+
+    if 'status' in req.payload:
+        status = str(req.payload['stus'])
+
+    if 'email' in req.payload:
+        email = req.payload['email']
+    if not email_valid(email):
+        send_blank_response(conn, req, status_code=400, payload="email must be valid format")
+        return
+
+    if 'socials' in req.payload:
+        var_socials = req.payload['socials']
+        socials = []
+        if type(var_socials) is list:
+            for s in var_socials:
+                socials.append(str(s))
+        else:
+            socials.append(str(var_socials))
+    try:
+        with db.transaction() as db:
+            user = User.get_user_by_username(username, db.root())
+            if email is not None:
+                user.email = email
+            if bio is not None:
+                user.bio = bio
+            if socials is not None:
+                user.socials = socials
+            if location is not None:
+                user.location = location
+            if status is not None:
+                user.status = status
+    except:
+        logging.error(f"Error while updating user {username}:\n{format_exc()}")
+        send_blank_response(conn, req, status_code=500)
+        return
+
+    send_blank_response(conn, req, status_code=200)
 
 def user_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     logging.debug(f"{req} being processed by user_root_handler")
@@ -255,5 +315,7 @@ def user_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     logging.debug("user is authorized")
     if req.method is Request.Method.GET:
         handle_user_get(req, conn, db)
+    elif req.method is Request.Method.UPDATE:
+        handle_user_update(req, conn ,db)
     else:
         send_blank_response(conn, req, status_code=404)

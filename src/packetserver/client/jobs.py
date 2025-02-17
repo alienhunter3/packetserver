@@ -125,6 +125,9 @@ def get_job_id(client: Client, bbs_callsign: str, job_id: int, get_data=True) ->
         raise RuntimeError(f"Sending job failed: {response.status_code}: {response.payload}")
     return JobWrapper(response.payload)
 
+def get_user_jobs(): # TODO
+    pass
+
 class JobSession:
     def __init__(self, client: Client, bbs_callsign: str, default_timeout: int = 300, stutter: int = 2):
         self.client = client

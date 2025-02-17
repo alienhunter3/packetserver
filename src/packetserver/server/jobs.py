@@ -248,8 +248,26 @@ def handle_job_get_id(req: Request, conn: PacketServerConnection, db: ZODB.DB, j
 
 def handle_job_get_user(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     username = ax25.Address(conn.remote_callsign).call.upper().strip()
-    # TODO finish user job lookup
-    send_blank_response(conn, req, 404)
+    jobs = []
+    value = "y"
+    include_data = True
+    for key in req.vars:
+        if key.lower().strip() == "data":
+            value = req.vars[key].lower().strip()
+    if value in no_values:
+        include_data = False
+    id_only = False
+    if 'id_only' in req.vars:
+        if req.vars['id_only'] in yes_values:
+            id_only = True
+    with db.transaction() as storage:
+        for jid in storage.root()['user_jobs'][username]:
+            jobs.append(Job.get_job_by_id(jid, storage.root()).to_dict(include_data=include_data))
+
+    if id_only:
+        send_blank_response(conn, req, status_code=200, payload=[x['id'] for x in jobs])
+    else:
+        send_blank_response(conn, req, status_code=200, payload=jobs)
 
 def handle_job_get(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     spl = [x for x in req.path.split("/") if x.strip() != ""]

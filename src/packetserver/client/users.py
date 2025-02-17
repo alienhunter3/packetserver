@@ -3,6 +3,7 @@ import datetime
 from packetserver.client import Client
 from packetserver.common import Request, Response, PacketServerConnection
 from typing import Union, Optional
+from packetserver.common.util import email_valid, random_string
 from uuid import UUID, uuid4
 import os.path
 
@@ -76,3 +77,34 @@ def get_users(client: Client, bbs_callsign: str, limit=None):
     for u in response.payload:
         user_list.append(UserWrapper(u))
     return user_list
+
+def update_self(client: Client, bbs_callsign: str, email: str = None, bio: str = None,
+                socials: Union[list[str],str] = None, location: str = None, status: str = None) -> bool:
+
+    payload = {}
+
+    if email is not None:
+        if not email_valid(email):
+            raise ValueError(f"{email} is not a valid e-mail address")
+        payload['email'] = email
+
+    if socials is not None:
+        payload['social'] = socials
+
+    if status is not None:
+        payload['status'] = str(status)
+
+    if location is not None:
+        payload['location'] = str(location)
+
+    if bio is not None:
+        payload['bio'] = str(bio)
+
+    req = Request.blank()
+    req.path = "user"
+    req.method = Request.Method.UPDATE
+    req.payload = payload
+    response = client.send_receive_callsign(req, bbs_callsign)
+    if response.status_code != 200:
+        raise RuntimeError(f"GET user {username} failed: {response.status_code}: {response.payload}")
+    return True

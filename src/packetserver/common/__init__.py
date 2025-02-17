@@ -336,7 +336,7 @@ def send_response(conn: PacketServerConnection, response: Response, original_req
         logging.warning(f"Attempted to send data, but connection state is {conn.state.name}")
 
 def send_blank_response(conn: PacketServerConnection, original_request: Request, status_code: int = 200,
-                  payload: Union[bytes, bytearray, str, dict] = ""):
+                  payload: Union[bytes, bytearray, str, dict, list] = ""):
     response = Response.blank()
     response.status_code = status_code
     response.payload = payload
