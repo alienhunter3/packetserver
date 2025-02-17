@@ -15,6 +15,7 @@ import uuid
 from uuid import UUID
 from packetserver.common.util import email_valid
 from packetserver.server.objects import Object
+from packetserver.server.users import User
 from BTrees.OOBTree import TreeSet
 from packetserver.server.users import User, user_authorized
 from traceback import format_exc
@@ -25,8 +26,14 @@ since_regex = """^message\\/since\\/(\\d+)$"""
 
 def mailbox_create(username: str, db_root: PersistentMapping):
     un = username.upper().strip()
+    u = User.get_user_by_username(un, db_root)
+    if u is None:
+        raise KeyError(f"Username {username} does not exist.")
+    if not u.enabled:
+        raise KeyError(f"Username {username} does not exist.")
     if un not in db_root['messages']:
         db_root['messages'][un] = persistent.list.PersistentList()
+
 
 def global_unique_message_uuid(db_root: PersistentMapping) -> UUID:
     if "message_uuids" not in db_root:
@@ -97,6 +104,7 @@ class Attachment:
                 "name": self.name,
                 "binary": self.binary,
                 "size_bytes": self.size,
+                "data": b''
             }
         if include_data:
             d['data'] = self.data
@@ -200,7 +208,9 @@ class Message(persistent.Persistent):
         new_attachments = []
         for i in self.attachments:
             if isinstance(i,ObjectAttachment):
-                new_attachments.append(Attachment(i.name, i.data))
+                logging.debug("Skpping object attachments for now. Resolve db queries for them at send time.")
+                # new_attachments.append(Attachment(i.name, i.data)) TODO send object attachments
+                pass
             else:
                 new_attachments.append(i)
         send_counter = 0
@@ -208,6 +218,8 @@ class Message(persistent.Persistent):
         failed = []
         to_all = False
         with db.transaction() as db:
+            mailbox_create(self.msg_from, db.root())
+            self.msg_id = global_unique_message_uuid(db.root())
             for recipient in self.msg_to:
                 recipient = recipient.upper().strip()
                 if recipient is None:
@@ -217,11 +229,13 @@ class Message(persistent.Persistent):
                     to_all = True
                     break
                 recipients.append(recipient)
+            if self.msg_from.upper().strip() in recipients:
+                recipients.remove(self.msg_from.upper().strip())
+                send_counter = send_counter + 1
             for recipient in recipients:
                 msg = Message(self.text, recipient, self.msg_from, attachments=[x.copy() for x in new_attachments])
                 try:
                     mailbox_create(recipient, db.root())
-                    msg.msg_id = global_unique_message_uuid(db.root())
                     msg.msg_delivered = True
                     msg.sent_at = datetime.datetime.now(datetime.UTC)
                     if to_all:
@@ -231,8 +245,10 @@ class Message(persistent.Persistent):
                 except:
                     logging.error(f"Error sending message to {recipient}:\n{format_exc()}")
                     failed.append(recipient)
-
-        return send_counter, failed
+        self.msg_delivered = True
+        self.attachments = [x.copy() for x in new_attachments]
+        db.root.messages[self.msg_from.upper().strip()].append(msg)
+        return send_counter, failed, self.msg_id
 
 DisplayOptions = namedtuple('DisplayOptions', ['get_text', 'limit', 'sort_by', 'reverse', 'search',
                                                'get_attachments', 'sent_received_all'])
@@ -305,7 +321,7 @@ def handle_messages_since(req: Request, conn: PacketServerConnection, db: ZODB.D
         logging.warning(f"Received req with wrong message for path {req.path}.")
         return
     try:
-        since_date = from_date_digits(req.path.split("/")[2])
+        since_date = from_date_digits(req.vars['since'])
     except ValueError as v:
         send_blank_response(conn, req, 400, "invalid date string")
         return
@@ -347,14 +363,43 @@ def handle_messages_since(req: Request, conn: PacketServerConnection, db: ZODB.D
     send_response(conn, response, req)
 
 def handle_message_get_id(req: Request, conn: PacketServerConnection, db: ZODB.DB):
-    # TODO message get specific by uuid
-    pass
+    uuid_val = req.vars['id']
+    obj_uuid = None
+    try:
+        if type(uuid_val) is bytes:
+            obj_uuid = UUID(bytes=uuid_val)
+        elif type(uuid_val) is int:
+            obj_uuid = UUID(int=uuid_val)
+        elif type(uuid_val) is str:
+            obj_uuid = UUID(uuid_val)
+    except:
+        pass
+    if obj_uuid is None:
+        send_blank_response(conn, req, 400)
+        return
+    opts = parse_display_options(req)
+    username = ax25.Address(conn.remote_callsign).call.upper().strip()
+    msg = None
+    with db.transaction() as db:
+        mailbox_create(username, db.root())
+        for m in db.root.messages[username]:
+            if m.msg_id == obj_uuid:
+                msg = m
+                break
+    if msg is None:
+        send_blank_response(conn, req, status_code=404)
+        return
+    else:
+        send_blank_response(conn, req,
+                            payload=msg.to_dict(get_text=opts.get_text, get_attachments=opts.get_attachments))
 
 def handle_message_get(req: Request, conn: PacketServerConnection, db: ZODB.DB):
-    if re.match(since_regex,req.path):
-        return handle_messages_since(req, conn, db)
-    elif 'id' in req.vars:
+    if 'id' in req.vars:
         return handle_message_get_id(req, conn, db)
+
+    if 'since' in req.vars:
+        return handle_messages_since(req, conn, db)
+
     opts = parse_display_options(req)
     username = ax25.Address(conn.remote_callsign).call.upper().strip() 
     msg_return = []
@@ -397,13 +442,16 @@ def handle_message_post(req: Request, conn: PacketServerConnection, db: ZODB.DB)
         return
     msg.msg_from = username
     try:
-        send_counter, failed = msg.send(db)
+        send_counter, failed, msg_id = msg.send(db)
     except:
         send_blank_response(conn, req, status_code=500)
         logging.error(f"Error while attempting to send message:\n{format_exc()}")
         return
 
-    send_blank_response(conn, req, status_code=201, payload={"successes": send_counter, "failed": failed})
+    send_blank_response(conn, req, status_code=201, payload={
+        "successes": send_counter,
+        "failed": failed,
+        'msg_id': msg_id})
 
 def message_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     logging.debug(f"{req} being processed by message_root_handler")
