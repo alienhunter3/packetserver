@@ -34,6 +34,7 @@ UI packets later on..
 
 ## Features completed:
 
+- protocol using connected mode sessions to provide request/response architecture
 - Object CRUD operations
 - Podman containerized job orchestrator
 - automatic compression for all RF communication
@@ -48,9 +49,9 @@ UI packets later on..
 
 - Useful documentation of any variety..
 - RF beacon
-- bbs administration over RF
-- cli bbs administration tools
-  - Right now, just edit the database with a python interpreter
+- service administration over RF
+- cli administration tools
+  - Right now, just edit the zope database with a python interpreter
 - possibly a cron system (again in containers for safety)
 - maybe an e-mail or an sms gateway (though clever user uploaded scripts could do this instead)
 - maybe APRS integration through APRS-IS
