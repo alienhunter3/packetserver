@@ -119,14 +119,25 @@ def send_job_quick(client: Client, bbs_callsign: str, cmd: Union[str, list], db:
 def get_job_id(client: Client, bbs_callsign: str, job_id: int, get_data=True) -> JobWrapper:
     req = Request.blank()
     req.path = f"job/{job_id}"
+    req.set_var('data', get_data)
     req.method = Request.Method.GET
     response = client.send_receive_callsign(req, bbs_callsign)
     if response.status_code != 200:
-        raise RuntimeError(f"Sending job failed: {response.status_code}: {response.payload}")
+        raise RuntimeError(f"GET job {job_id} failed: {response.status_code}: {response.payload}")
     return JobWrapper(response.payload)
 
-def get_user_jobs(): # TODO
-    pass
+def get_user_jobs(client: Client, bbs_callsign: str, get_data=True) -> list[JobWrapper]:
+    req = Request.blank()
+    req.path = f"job/user"
+    req.set_var('data', get_data)
+    req.method = Request.Method.GET
+    response = client.send_receive_callsign(req, bbs_callsign)
+    if response.status_code != 200:
+        raise RuntimeError(f"GET user jobs failed: {response.status_code}: {response.payload}")
+    jobs = []
+    for j in response.payload:
+        jobs.append(JobWrapper(j))
+    return jobs
 
 class JobSession:
     def __init__(self, client: Client, bbs_callsign: str, default_timeout: int = 300, stutter: int = 2):

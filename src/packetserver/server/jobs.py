@@ -18,7 +18,7 @@ import gzip
 import tarfile
 import time
 import json
-from packetserver.runner.podman import TarFileExtractor, PodmanOrchestrator, PodmanRunner, PodmanOptions
+from packetserver.common.util import TarFileExtractor
 from packetserver.runner import Orchestrator, Runner, RunnerStatus, RunnerFile
 from enum import Enum
 from io import BytesIO
@@ -38,6 +38,7 @@ def get_orchestrator_from_config(cfg: dict) -> Union[Orchestrator, PodmanOrchest
     if 'runner' in cfg:
         val = cfg['runner'].lower().strip()
         if val == "podman":
+            from packetserver.runner.podman import PodmanOrchestrator, PodmanOptions
             image = cfg.get('image', 'debian')
             opts = PodmanOptions(default_timeout=300, max_timeout=3600, image_name=image, max_active_jobs=5,
                                   container_keepalive=300, name_prefix="packetserver_")

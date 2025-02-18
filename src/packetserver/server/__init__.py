@@ -25,7 +25,7 @@ from threading import Thread
 from packetserver.server.jobs import get_orchestrator_from_config, Job, JobStatus
 from packetserver.runner import RunnerStatus, RunnerFile, Orchestrator, Runner
 
-VERSION="0.2.0-alpha"
+VERSION="0.4.0-alpha"
 
 def init_bulletins(root: PersistentMapping):
     if 'bulletins' not in root:
@@ -103,7 +103,7 @@ class Server:
                 if 'runner' in conn.root.config['jobs_config']:
                     val = str(conn.root.config['jobs_config']['runner']).lower().strip()
                     if val in ['podman']:
-                        logging.debug("Enabling podman orchestrator")
+                        logging.debug(f"Enabling {val} orchestrator")
                         self.orchestrator = get_orchestrator_from_config(conn.root.config['jobs_config'])
 
         self.app = pe.app.Application()
