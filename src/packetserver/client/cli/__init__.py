@@ -14,7 +14,6 @@ from pathlib import Path
 from packetserver.client import Client
 from packetserver.client import users
 from packetserver.client.users import get_user_by_username, UserWrapper
-from
 
 VERSION="0.1.0-alpha"
 
