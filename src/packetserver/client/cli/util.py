@@ -12,12 +12,12 @@ def format_list_dicts(dicts: list[dict], output_format: str = "table") -> str:
         return json.dumps(dicts, indent=2)
 
     elif output_format == "list":
-        output = "-------------\n"
+        output = ""
         for i in dicts:
             t = []
             for key in i:
                 t.append([str(key), str(i[key])])
-            output = output + tabulate(t) + "-------------\n"
+            output = output + tabulate(t) + "\n"
         return output
     else:
         raise ValueError("Unsupported format type.")
