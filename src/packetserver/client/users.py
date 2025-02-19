@@ -19,7 +19,7 @@ class UserWrapper:
         out_dict = {}
         for a in ['username', 'status', 'bio', 'socials', 'created', 'last_seen', 'email', 'location']:
             if a != 'socials':
-                out_dict[a] = getattr(self, a)
+                out_dict[a] = str(getattr(self, a))
             else:
                 social_str = "\n".join(self.socials)
                 out_dict['socials'] = social_str
