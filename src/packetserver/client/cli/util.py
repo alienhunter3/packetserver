@@ -3,6 +3,9 @@ import json
 import click
 from packetserver.client import Client
 import sys
+import ZODB
+from persistent.mapping import PersistentMapping
+import datetime
 
 def format_list_dicts(dicts: list[dict], output_format: str = "table") -> str:
     if output_format == "table":
@@ -22,7 +25,24 @@ def format_list_dicts(dicts: list[dict], output_format: str = "table") -> str:
     else:
         raise ValueError("Unsupported format type.")
 
-def exit_client(client: Client, return_code: int, message=""):
+def write_request_log(db: ZODB.DB, client: Client):
+    with db.transaction() as db_trans:
+        if not 'request_log' in db_trans.root():
+            db_trans['request_log'] = PersistentMapping()
+        now = datetime.datetime.now()
+        db_trans['request_log'][now.isoformat()] = client.request_log
+
+
+
+def exit_client(context: dict, return_code: int, message=""):
+    client = context['client']
+    db = context['db']
+    client.stop()
+
+    if context['keep_log']:
+        write_request_log(db, client)
+
+    db.close()
     client.stop()
     if return_code == 0:
         is_err = False

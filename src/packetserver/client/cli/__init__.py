@@ -5,6 +5,7 @@ from packetserver.client import Client
 from packetserver.common.constants import yes_values
 from packetserver.common import Request, Response
 from packetserver.client.cli.util import format_list_dicts, exit_client
+from packetserver.client.cli.job import job
 import ZODB
 import ZODB.FileStorage
 import ax25
@@ -25,12 +26,20 @@ VERSION="0.1.0-alpha"
 @click.option('--agwpe', '-a', default='', help="AGWPE TNC server address to connect to (config file)")
 @click.option('--port', '-p', default=0, help="AGWPE TNC server port to connect to (config file)")
 @click.option('--callsign', '-c', default='', help="radio callsign[+ssid] of this client station (config file)")
+@click.option('--keep-log', '-k', is_flag=True, default=False, help="Save local copy of request log after session ends?")
 @click.version_option(VERSION,"--version", "-v")
 @click.pass_context
-def cli(ctx, conf, server, agwpe, port, callsign):
+def cli(ctx, conf, server, agwpe, port, callsign, keep_log):
     """Command line interface for the PacketServer client and server API."""
     ctx.ensure_object(dict)
     cfg = get_config(config_file_path=conf)
+
+    ctx.obj['keep_log'] = False
+    if keep_log:
+        ctx.obj['keep_log'] = True
+    else:
+        if cfg['cli'].get('keep_log', fallback='n') in yes_values:
+            ctx.obj['keep_log'] = True
 
     if callsign.strip() != '':
         ctx.obj['callsign'] = callsign.strip().upper()
@@ -38,8 +47,7 @@ def cli(ctx, conf, server, agwpe, port, callsign):
         if 'callsign' in cfg['cli']:
             ctx.obj['callsign'] = cfg['cli']['callsign']
         else:
-            click.echo("You must provide client station's callsign.", err=True)
-            sys.exit(1)
+            ctx.obj['callsign'] = click.prompt('Please enter your station callsign (with ssid if needed)', type=str)
 
     if not ax25.Address.valid_call(ctx.obj['callsign']):
         click.echo(f"Provided client callsign '{ctx.obj['callsign']}' is invalid.", err=True)
@@ -51,8 +59,7 @@ def cli(ctx, conf, server, agwpe, port, callsign):
         if 'server' in cfg['cli']:
             ctx.obj['server'] = cfg['cli']['server']
         else:
-            click.echo("Remote BBS server callsign must be specified.", err=True)
-            sys.exit(1)
+            ctx.obj['server'] = click.prompt('Please enter the bbs station callsign (with ssid if needed)', type=str)
 
     if not ax25.Address.valid_call(ctx.obj['server']):
         click.echo(f"Provided remote server callsign '{ctx.obj['server']}' is invalid.", err=True)
@@ -76,7 +83,7 @@ def cli(ctx, conf, server, agwpe, port, callsign):
 
     storage = ZODB.FileStorage.FileStorage(os.path.join(cfg['cli']['directory'], DEFAULT_DB_FILE))
     db = ZODB.DB(storage)
-    client = Client(ctx.obj['agwpe_server'], ctx.obj['port'], ctx.obj['callsign'], keep_log=True)
+    client = Client(ctx.obj['agwpe_server'], ctx.obj['port'], ctx.obj['callsign'], keep_log=ctx.obj['keep_log'])
     try:
         client.start()
     except Exception as e:
@@ -99,13 +106,13 @@ def query_server(ctx):
     resp = client.send_receive_callsign(req, ctx.obj['bbs'])
     if resp is None:
         click.echo(f"No response from {ctx.obj['bbs']}")
-        exit_client(client, 1)
+        exit_client(ctx.obj, 1)
     else:
         if resp.status_code != 200:
-            exit_client(client, 1, message=f"Error contacting server: {resp.payload}")
+            exit_client(ctx.obj, 1, message=f"Error contacting server: {resp.payload}")
         else:
             click.echo(json.dumps(resp.payload, indent=2))
-            exit_client(client, 0)
+            exit_client(ctx.obj, 0)
 
 
 @click.command()
@@ -119,10 +126,10 @@ def user(ctx, list_users, output_format, username):
     client = ctx.obj['client']
     # validate args
     if list_users and (username.strip() != ""):
-        exit_client(client,1, "Can't specify a username while listing all users.")
+        exit_client(ctx.obj,1, "Can't specify a username while listing all users.")
 
     if not list_users and (username.strip() == ""):
-        exit_client(client,1, message="Must provide either a username or --list-users flag.")
+        exit_client(ctx.obj,1, message="Must provide either a username or --list-users flag.")
 
     output_objects = []
     try:
@@ -131,15 +138,16 @@ def user(ctx, list_users, output_format, username):
         else:
             output_objects.append(users.get_user_by_username(client, ctx.obj['bbs'], username))
     except Exception as e:
-        exit_client(client,1, str(e))
+        exit_client(ctx.obj,1, str(e))
     finally:
         client.stop()
 
     click.echo(format_list_dicts([x.pretty_dict() for x in output_objects], output_format=output_format.lower()))
-    exit_client(client, 0)
+    exit_client(ctx.obj, 0)
 
 cli.add_command(user)
 cli.add_command(query_server)
+cli.add_command(job, name='job')
 
 if __name__ == '__main__':
     cli()
