@@ -4,7 +4,7 @@ import click
 from packetserver.client import Client
 import sys
 
-def format_list_dicts(dicts: list[dict], output_format: str = "table"):
+def format_list_dicts(dicts: list[dict], output_format: str = "table") -> str:
     if output_format == "table":
         return tabulate(dicts, headers="keys")
 
@@ -18,7 +18,7 @@ def format_list_dicts(dicts: list[dict], output_format: str = "table"):
             for key in i:
                 t.append([str(key), str(i[key])])
             output = output + tabulate(t) + "-------------\n"
-
+        return output
     else:
         raise ValueError("Unsupported format type.")
 
