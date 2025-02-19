@@ -34,7 +34,7 @@ class JobStatus(Enum):
     FAILED = 7
     TIMED_OUT = 8
 
-def get_orchestrator_from_config(cfg: dict) -> Union[Orchestrator, PodmanOrchestrator]:
+def get_orchestrator_from_config(cfg: dict) -> Orchestrator:
     if 'runner' in cfg:
         val = cfg['runner'].lower().strip()
         if val == "podman":

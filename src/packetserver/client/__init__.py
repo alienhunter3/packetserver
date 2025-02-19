@@ -35,6 +35,9 @@ class Client:
     def exit_gracefully(self, signum, frame):
         self.stop()
 
+    def __del__(self):
+        self.stop()
+
     @property
     def connections(self) -> dict:
         if not self.started:
@@ -82,9 +85,10 @@ class Client:
         self.started = True
 
     def clear_connections(self):
-        cm = self.app._engine._active_handler._handlers[1]._connection_map
-        for key in cm._connections.keys():
-            cm._connections[key].close()
+        if self.app._engine is not None:
+            cm = self.app._engine._active_handler._handlers[1]._connection_map
+            for key in cm._connections.keys():
+                cm._connections[key].close()
 
     def new_connection(self, dest: str) -> PacketServerConnection:
         if not self.started:

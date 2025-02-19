@@ -38,10 +38,12 @@ def cli(ctx, conf, server, agwpe, port, callsign):
         if 'callsign' in cfg['cli']:
             ctx.obj['callsign'] = cfg['cli']['callsign']
         else:
-            raise ValueError("You must provide client station's callsign.")
+            click.echo("You must provide client station's callsign.", err=True)
+            sys.exit(1)
 
     if not ax25.Address.valid_call(ctx.obj['callsign']):
-        raise ValueError(f"Provided client callsign '{ctx.obj['callsign']}' is invalid.")
+        click.echo(f"Provided client callsign '{ctx.obj['callsign']}' is invalid.", err=True)
+        sys.exit(1)
 
     if server.strip() != '':
         ctx.obj['server'] = server.strip().upper()
@@ -49,10 +51,12 @@ def cli(ctx, conf, server, agwpe, port, callsign):
         if 'server' in cfg['cli']:
             ctx.obj['server'] = cfg['cli']['server']
         else:
-            raise ValueError("Remote BBS server callsign must be specified.")
+            click.echo("Remote BBS server callsign must be specified.", err=True)
+            sys.exit(1)
 
     if not ax25.Address.valid_call(ctx.obj['server']):
-        raise ValueError(f"Provided remote server callsign '{ctx.obj['server']}' is invalid.")
+        click.echo(f"Provided remote server callsign '{ctx.obj['server']}' is invalid.", err=True)
+        sys.exit(1)
 
     if agwpe.strip() != '':
         ctx.obj['agwpe_server'] = agwpe.strip()
@@ -73,32 +77,44 @@ def cli(ctx, conf, server, agwpe, port, callsign):
     storage = ZODB.FileStorage.FileStorage(os.path.join(cfg['cli']['directory'], DEFAULT_DB_FILE))
     db = ZODB.DB(storage)
     client = Client(ctx.obj['agwpe_server'], ctx.obj['port'], ctx.obj['callsign'], keep_log=True)
+    try:
+        client.start()
+    except Exception as e:
+        click.echo(f"Error connecting to TNC: {str(e)}", err=True)
+        sys.exit(1)
+
     ctx.obj['client'] = client
     ctx.obj['CONFIG'] = cfg
     ctx.obj['bbs'] = server
     ctx.obj['db'] = db
 
 @click.command()
-@click.argument('username', required=False, default='', help="the username (CALLSIGN) to lookup on the bbs")
+@click.argument('username', required=False, default='')
 @click.option('--list-users', '-l', is_flag=True, default=False, help="If set, downloads list of all users.")
 @click.option("--output-format", "-f", default="table", help="Print data as table[default], list, or JSON",
               type=click.Choice(['table', 'json', 'list'], case_sensitive=False))
 @click.pass_context
 def user(ctx, list_users, output_format, username):
-    """Query users on the BBS."""
+    """Query users on the BBS. Either listing multiple users or looking up information of USERNAME"""
     client = ctx.obj['client']
     # validate args
     if list_users and (username.strip() != ""):
-        raise ValueError("Can't specify a username while listing all users.")
+        click.echo("Can't specify a username while listing all users.", err=True)
+        sys.exit(1)
 
     if not list_users and (username.strip() == ""):
-        raise ValueError("Must provide either a username or --list-users flag.")
+        click.echo("Must provide either a username or --list-users flag.", err=True)
+        sys.exit(1)
 
     output_objects = []
-    if list_users:
-        output_objects = users.get_users(client, ctx.obj['bbs'])
-    else:
-        output_objects.append(users.get_user_by_username(client, ctx.obj['bbs'], username))
+    try:
+        if list_users:
+            output_objects = users.get_users(client, ctx.obj['bbs'])
+        else:
+            output_objects.append(users.get_user_by_username(client, ctx.obj['bbs'], username))
+    except Exception as e:
+        click.echo(str(e), err=True)
+        sys.exit(1)
 
     click.echo(format_list_dicts([x.pretty_dict() for x in output_objects], output_format=output_format.lower()))
 
