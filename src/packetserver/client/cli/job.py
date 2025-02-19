@@ -68,3 +68,6 @@ def quick_session(ctx, transcript):
                     tran_file.write(f"{l[1]}:{l[0].isoformat()}: {l[2]}{os.linesep}")
     finally:
         exit_client(ctx.obj, 0)
+
+
+job.add_command(quick_session)
