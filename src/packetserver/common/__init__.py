@@ -41,7 +41,7 @@ class PacketServerConnection(Connection):
             return self.call_to
 
     def connected(self):
-        print("connected")
+        logging.debug("connected")
         logging.debug(f"new connection from {self.call_from} to {self.call_to}")
         for fn in PacketServerConnection.connection_subscribers:
             fn(self)
