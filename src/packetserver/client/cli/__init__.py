@@ -88,6 +88,13 @@ def cli(ctx, conf, server, agwpe, port, callsign):
     ctx.obj['bbs'] = server
     ctx.obj['db'] = db
 
+@cli.result_callback()
+@click.pass_context
+def cli_callback(result, ctx):
+    ctx.obj['client'].stop()
+    sys.exit(result)
+
+
 @click.command()
 @click.argument('username', required=False, default='')
 @click.option('--list-users', '-l', is_flag=True, default=False, help="If set, downloads list of all users.")
@@ -100,11 +107,11 @@ def user(ctx, list_users, output_format, username):
     # validate args
     if list_users and (username.strip() != ""):
         click.echo("Can't specify a username while listing all users.", err=True)
-        sys.exit(1)
+        return 1
 
     if not list_users and (username.strip() == ""):
         click.echo("Must provide either a username or --list-users flag.", err=True)
-        sys.exit(1)
+        return 1
 
     output_objects = []
     try:
@@ -114,9 +121,12 @@ def user(ctx, list_users, output_format, username):
             output_objects.append(users.get_user_by_username(client, ctx.obj['bbs'], username))
     except Exception as e:
         click.echo(str(e), err=True)
-        sys.exit(1)
+        return 1
+    finally:
+        client.stop()
 
     click.echo(format_list_dicts([x.pretty_dict() for x in output_objects], output_format=output_format.lower()))
+    return 1
 
 cli.add_command(user)
 
