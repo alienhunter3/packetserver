@@ -3,25 +3,37 @@ import json
 import gzip
 import base64
 from io import BytesIO
+from uuid import UUID
 
 def get_user_db(username: str, db: ZODB.DB) -> dict:
     udb = {
-        "objects": {},
+        "objects": [],
         "messages": [],
         "user": {},
         "bulletins": [],
         "jobs": []
     }
     username = username.strip().upper()
-    with db.transaction() as db_conn:
+    with (db.transaction() as db_conn):
         user = db_conn.root.users[username]
         udb['user'] = user.to_safe_dict()
         for o in user.object_uuids:
-            if type(o.data) is bytes:
-                o.data = base64.b64encode(o.data).decode()
+            obj = {}
+            tmp = db_conn.root.objects[o].to_dict()
+
+            obj['name'] = tmp['name']
+            obj['private'] = tmp['private']
+            obj['uuid'] = str(UUID(bytes=tmp['uuid_bytes']))
+            obj['created_at'] = tmp['created_at']
+            obj['modified_at'] = tmp['modified_at']
+
+            if type(tmp['data']) is bytes:
+                obj['data'] = base64.b64encode(tmp['data']).decode()
             else:
-                o.data = base64.b64encode(o.data.encode()).decode()
-            udb['objects'][o] = db_conn.root.objects[o].to_dict()
+                obj['data'] = str(tmp['data'])
+
+            udb['objects'].append(obj)
+
         if user in db_conn.root.messages:
             for m in db_conn.root.messages[username]:
                 for a in m.attachments:

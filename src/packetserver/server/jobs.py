@@ -298,7 +298,12 @@ def handle_new_job_post(req: Request, conn: PacketServerConnection, db: ZODB.DB)
     files = []
     if 'db' in req.payload:
         logging.debug(f"Fetching a user db as requested.")
-        dbf = RunnerFile('user-db.json.gz', data=get_user_db_json(username.lower(), db))
+        try:
+            dbf = RunnerFile('user-db.json.gz', data=get_user_db_json(username.lower(), db))
+        except:
+            logging.error(format_exc())
+            send_blank_response(conn, req, 500)
+            return
         files.append(dbf)
     if 'files' in req.payload:
         if type(files) is dict:
