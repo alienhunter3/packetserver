@@ -1,5 +1,8 @@
 from tabulate import tabulate
 import json
+import click
+from packetserver.client import Client
+import sys
 
 def format_list_dicts(dicts: list[dict], output_format: str = "table"):
     if output_format == "table":
@@ -19,6 +22,15 @@ def format_list_dicts(dicts: list[dict], output_format: str = "table"):
     else:
         raise ValueError("Unsupported format type.")
 
+def exit_client(client: Client, return_code: int, message=""):
+    client.stop()
+    if return_code == 0:
+        is_err = False
+    else:
+        is_err = True
+    if message.strip() != "":
+        click.echo(message, err=is_err)
+    sys.exit(return_code)
 
 
 

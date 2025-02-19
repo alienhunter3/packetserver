@@ -3,7 +3,7 @@ from packetserver.client.cli.config import get_config, default_app_dir, config_p
 from packetserver.client.cli.constants import DEFAULT_DB_FILE
 from packetserver.client import Client
 from packetserver.common.constants import yes_values
-from packetserver.client.cli.util import format_list_dicts
+from packetserver.client.cli.util import format_list_dicts, exit_client
 import ZODB
 import ZODB.FileStorage
 import ax25
@@ -14,10 +14,9 @@ from pathlib import Path
 from packetserver.client import Client
 from packetserver.client import users
 from packetserver.client.users import get_user_by_username, UserWrapper
+from
 
 VERSION="0.1.0-alpha"
-
-
 
 @click.group()
 @click.option('--conf', default=config_path(), help='path to configfile')
@@ -88,12 +87,6 @@ def cli(ctx, conf, server, agwpe, port, callsign):
     ctx.obj['bbs'] = server
     ctx.obj['db'] = db
 
-@cli.result_callback()
-@click.pass_context
-def cli_callback(result, ctx):
-    ctx.obj['client'].stop()
-    sys.exit(result)
-
 
 @click.command()
 @click.argument('username', required=False, default='')
@@ -106,12 +99,10 @@ def user(ctx, list_users, output_format, username):
     client = ctx.obj['client']
     # validate args
     if list_users and (username.strip() != ""):
-        click.echo("Can't specify a username while listing all users.", err=True)
-        return 1
+        exit_client(client,1, "Can't specify a username while listing all users.")
 
     if not list_users and (username.strip() == ""):
-        click.echo("Must provide either a username or --list-users flag.", err=True)
-        return 1
+        exit_client(client,1, message="Must provide either a username or --list-users flag.")
 
     output_objects = []
     try:
@@ -120,13 +111,12 @@ def user(ctx, list_users, output_format, username):
         else:
             output_objects.append(users.get_user_by_username(client, ctx.obj['bbs'], username))
     except Exception as e:
-        click.echo(str(e), err=True)
-        return 1
+        exit_client(client,1, str(e))
     finally:
         client.stop()
 
     click.echo(format_list_dicts([x.pretty_dict() for x in output_objects], output_format=output_format.lower()))
-    return 1
+    exit_client(client, 0)
 
 cli.add_command(user)
 
