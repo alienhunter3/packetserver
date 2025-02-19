@@ -39,7 +39,7 @@ def quick_session(ctx, transcript):
     while True:
         cmd = click.prompt("CMD", prompt_suffix=" >")
         cmd = cmd.strip()
-        session_transcript = session_transcript.append((datetime.datetime.now(),"c",cmd))
+        session_transcript.append((datetime.datetime.now(),"c",cmd))
         next_db = False
         if db_enabled:
             next_db = True
@@ -55,10 +55,10 @@ def quick_session(ctx, transcript):
             try:
                 job_result = js.send_quick(['bash', '-c', cmd], db=next_db)
                 output = job_result.output_str + "\n" + "Errors: " + job_result.errors_str
-                session_transcript = session_transcript.append((datetime.datetime.now(), "r", output))
+                session_transcript.append((datetime.datetime.now(), "r", output))
                 click.echo(output)
             except Exception as e:
-                session_transcript = session_transcript.append((datetime.datetime.now(), "e", e))
+                session_transcript.append((datetime.datetime.now(), "e", e))
                 click.echo(f"ERROR! {str(e)}", err=True)
                 continue
     try:
