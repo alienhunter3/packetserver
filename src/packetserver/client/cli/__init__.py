@@ -3,12 +3,14 @@ from packetserver.client.cli.config import get_config, default_app_dir, config_p
 from packetserver.client.cli.constants import DEFAULT_DB_FILE
 from packetserver.client import Client
 from packetserver.common.constants import yes_values
+from packetserver.common import Request, Response
 from packetserver.client.cli.util import format_list_dicts, exit_client
 import ZODB
 import ZODB.FileStorage
 import ax25
 import sys
 import os
+import json
 import os.path
 from pathlib import Path
 from packetserver.client import Client
@@ -86,6 +88,25 @@ def cli(ctx, conf, server, agwpe, port, callsign):
     ctx.obj['bbs'] = server
     ctx.obj['db'] = db
 
+@click.command()
+@click.pass_context
+def query_server(ctx):
+    """Query the server for basic info."""
+    client = ctx.obj['client']
+    req = Request.blank()
+    req.path = ""
+    req.method = Request.Method.GET
+    resp = client.send_receive_callsign(req, ctx.obj['bbs'])
+    if resp is None:
+        click.echo(f"No response from {ctx.obj['bbs']}")
+        exit_client(client, 1)
+    else:
+        if resp.status_code != 200:
+            exit_client(client, 1, message=f"Error contacting server: {resp.payload}")
+        else:
+            click.echo(json.dumps(resp.payload, indent=2))
+            exit_client(client, 0)
+
 
 @click.command()
 @click.argument('username', required=False, default='')
@@ -118,6 +139,7 @@ def user(ctx, list_users, output_format, username):
     exit_client(client, 0)
 
 cli.add_command(user)
+cli.add_command(query_server)
 
 if __name__ == '__main__':
     cli()
