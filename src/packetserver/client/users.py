@@ -15,6 +15,18 @@ class UserWrapper:
                 raise ValueError("Data dict was not an object dictionary.")
         self.data = data
 
+    def pretty_dict(self) -> dict:
+        out_dict = {}
+        for a in ['username', 'status', 'bio', 'socials', 'created', 'last_seen', 'email', 'location']:
+            if a != 'socials':
+                out_dict[a] = getattr(self, a)
+            else:
+                social_str = "\n".join(self.socials)
+                out_dict['socials'] = social_str
+
+        return out_dict
+
+
     def __repr__(self):
         return f"<UserWrapper: {self.username}>"
 

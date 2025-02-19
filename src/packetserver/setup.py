@@ -12,7 +12,8 @@ setup(
         'pyham_ax25',
         'ZODB',
         'ZEO',
-        'podman'
+        'podman',
+        'tabulate'
     ],
     entry_points={
         'console_scripts': [
