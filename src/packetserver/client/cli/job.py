@@ -4,9 +4,9 @@ import os
 import click
 from persistent.mapping import default
 from packetserver.client import Client
-from packetserver.client.jobs import JobSession
+from packetserver.client.jobs import JobSession, get_job_id, get_user_jobs, send_job, send_job_quick, JobWrapper
 import datetime
-from packetserver.client.cli.util import exit_client
+from packetserver.client.cli.util import exit_client, format_list_dicts
 
 @click.group()
 @click.pass_context
@@ -16,15 +16,43 @@ def job(ctx):
 
 @click.command()
 @click.pass_context
-def start():
+def start(ctx):
     """Start a job on the BBS server."""
     pass
 
+
 @click.command()
+@click.argument('job_id', required=False, type=int)
+@click.option("--all-jobs", "-a", is_flag=True, default=False, help="Get all of your jobs.")
+@click.option("--no-data", '-n', is_flag=True, default=True,
+              help="Don't fetch job result data, just metadata.")
 @click.pass_context
-def get():
-    """Retrieve a job"""
-    pass
+def get(ctx, job_id, all_jobs, no_data): # TODO decide what to do with output and artifacts in a cli tool force full JSON?
+    """Retrieve your jobs. Pass either '-a' or a job_id."""
+
+    fetch_data = not no_data
+    if job_id is None:
+        job_id = ""
+    job_id = job_id.strip()
+    if all_jobs and (job_id != ""):
+        click.echo("Can't use --all and specify a job_id.")
+
+    client = ctx.obj['client']
+    try:
+        if all_jobs:
+            jobs_out = get_user_jobs(client, ctx.obj['bbs'], get_data=fetch_data)
+        else:
+            jobs_out = [get_job_id(client,ctx.obj['bbs'], get_data=fetch_data)]
+        dicts_out = []
+        for j in jobs_out:
+
+
+    except Exception as e:
+        click.echo(str(e), err=True)
+        exit_client(ctx.obj, 1)
+
+
+
 
 @click.command()
 @click.option("--transcript", "-T", default="", help="File to write command transcript to if desired.")
@@ -54,7 +82,9 @@ def quick_session(ctx, transcript):
         else:
             try:
                 job_result = js.send_quick(['bash', '-c', cmd], db=next_db)
-                output = job_result.output_str + "\n" + "Errors: " + job_result.errors_str
+                output = job_result.output_str + "\n"
+                if job_result.errors_str != "":
+                    output = output + "Errors: " + job_result.errors_str
                 session_transcript.append((datetime.datetime.now(), "r", output))
                 click.echo(output)
             except Exception as e:
