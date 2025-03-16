@@ -1,7 +1,7 @@
 import datetime
 import pe.app
 from ZEO.asyncio.server import new_connection
-
+from packetserver.common.testing import SimpleDirectoryConnection
 from packetserver.common import Response, Message, Request, PacketServerConnection, send_response, send_blank_response
 import ax25
 import logging
@@ -63,7 +63,7 @@ class Client:
                 return self.connections[key]
         return None
 
-    def connection_for(self, callsign: str):
+    def connection_for(self, callsign: str) -> Union[PacketServerConnection, SimpleDirectoryConnection]:
         if not ax25.Address.valid_call(callsign):
             raise ValueError("Must supply a valid callsign.")
         callsign = callsign.upper().strip()
@@ -90,7 +90,7 @@ class Client:
             for key in cm._connections.keys():
                 cm._connections[key].close()
 
-    def new_connection(self, dest: str) -> PacketServerConnection:
+    def new_connection(self, dest: str) -> Union[PacketServerConnection, SimpleDirectoryConnection]:
         if not self.started:
             raise RuntimeError("Must start client before creating connections.")
         if not ax25.Address.valid_call(dest):
@@ -113,7 +113,28 @@ class Client:
         time.sleep(8)
         return conn
 
-    def send_and_receive(self, req: Request, conn: PacketServerConnection, timeout: int = 300) -> Optional[Response]:
+    def receive(self, req: Request, conn: Union[PacketServerConnection,SimpleDirectoryConnection], timeout: int = 300):
+        cutoff_date = datetime.datetime.now() + datetime.timedelta(seconds=timeout)
+        logging.debug(f"{datetime.datetime.now()}: Request timeout date is {cutoff_date}")
+        while datetime.datetime.now() < cutoff_date:
+            if conn.state.name != "CONNECTED":
+                logging.error(f"Connection {conn} disconnected.")
+                if self.keep_log:
+                    self.request_log.append((req, None))
+                return None
+            try:
+                unpacked = conn.data.unpack()
+            except:
+                time.sleep(.1)
+                continue
+            msg = Message.partial_unpack(unpacked)
+            resp = Response(msg)
+            return resp
+        logging.warning(f"{datetime.datetime.now()}: Request {req} timed out.")
+        return None
+
+    def send_and_receive(self, req: Request, conn: Union[PacketServerConnection,SimpleDirectoryConnection],
+                         timeout: int = 300) -> Optional[Response]:
         if conn.state.name != "CONNECTED":
             raise RuntimeError("Connection is not connected.")
         logging.debug(f"Sending request {req}")
@@ -124,27 +145,9 @@ class Client:
         with self._connection_locks[dest]:
             conn.data = Unpacker()
             conn.send_data(req.pack())
-            cutoff_date = datetime.datetime.now() + datetime.timedelta(seconds=timeout)
-            logging.debug(f"{datetime.datetime.now()}: Request timeout date is {cutoff_date}")
-            while datetime.datetime.now() < cutoff_date:
-                if conn.state.name != "CONNECTED":
-                    logging.error(f"Connection {conn} disconnected.")
-                    if self.keep_log:
-                        self.request_log.append((req,None))
-                    return None
-                try:
-                    unpacked = conn.data.unpack()
-                except:
-                    time.sleep(.1)
-                    continue
-                msg = Message.partial_unpack(unpacked)
-                resp =  Response(msg)
-                if self.keep_log:
-                    self.request_log.append((req, resp))
-                return resp
-            logging.warning(f"{datetime.datetime.now()}: Request {req} timed out.")
-            self.request_log.append((req, None))
-            return None
+            resp = self.receive(req, conn, timeout=timeout)
+            self.request_log.append((req, resp))
+            return resp
 
     def send_receive_callsign(self, req: Request, callsign: str, timeout: int = 300) -> Optional[Response]:
         return self.send_and_receive(req, self.connection_for(callsign), timeout=timeout)

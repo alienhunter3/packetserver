@@ -45,7 +45,7 @@ def get(ctx, job_id, all_jobs, no_data): # TODO decide what to do with output an
             jobs_out = [get_job_id(client,ctx.obj['bbs'], get_data=fetch_data)]
         dicts_out = []
         for j in jobs_out:
-
+            pass
 
     except Exception as e:
         click.echo(str(e), err=True)
