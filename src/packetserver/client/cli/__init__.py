@@ -6,6 +6,7 @@ from packetserver.common.constants import yes_values
 from packetserver.common import Request, Response
 from packetserver.client.cli.util import format_list_dicts, exit_client
 from packetserver.client.cli.job import job
+from packetserver.client.cli.object import objects
 import ZODB
 import ZODB.FileStorage
 import ax25
@@ -22,10 +23,14 @@ VERSION="0.1.0-alpha"
 
 @click.group()
 @click.option('--conf', default=config_path(), help='path to configfile')
-@click.option('--server', '-s', default='', help="server radio callsign to connect to (required)")
-@click.option('--agwpe', '-a', default='', help="AGWPE TNC server address to connect to (config file)")
-@click.option('--port', '-p', default=0, help="AGWPE TNC server port to connect to (config file)")
-@click.option('--callsign', '-c', default='', help="radio callsign[+ssid] of this client station (config file)")
+@click.option('--server', '-s', default='', help="server radio callsign to connect to (required)",
+              envvar='PSCLIENT_SERVER')
+@click.option('--agwpe', '-a', default='', help="AGWPE TNC server address to connect to (config file)",
+              envvar='PSCLIENT_AGWPE')
+@click.option('--port', '-p', default=0, help="AGWPE TNC server port to connect to (config file)",
+              envvar='PSCLIENT_PORT')
+@click.option('--callsign', '-c', default='', help="radio callsign[+ssid] of this client station (config file)",
+              envvar='PSCLIENT_CALLSIGN')
 @click.option('--keep-log', '-k', is_flag=True, default=False, help="Save local copy of request log after session ends?")
 @click.version_option(VERSION,"--version", "-v")
 @click.pass_context
@@ -152,6 +157,7 @@ def user(ctx, list_users, output_format, username):
 cli.add_command(user)
 cli.add_command(query_server)
 cli.add_command(job, name='job')
+cli.add_command(objects, name='object')
 
 if __name__ == '__main__':
     cli()

@@ -121,7 +121,8 @@ def get_user_objects(client: Client, bbs_callsign: str, limit: int = 10, include
     if sort_name:
         req.set_var('sort', 'name')
     req.set_var('reverse', reverse)
-    req.set_var('limit', limit)
+    if limit != 0:
+        req.set_var('limit', limit)
     if search is not None:
         req.set_var('search', str(search))
     req.path = "object"
