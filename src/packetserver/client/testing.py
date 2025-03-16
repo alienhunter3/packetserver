@@ -9,6 +9,7 @@ import ax25
 from threading import Lock
 import logging
 import os.path
+import datetime
 from shutil import rmtree
 
 class TestClient(Client):
@@ -55,7 +56,12 @@ class TestClient(Client):
 
     def receive(self, req: Request, conn: Union[PacketServerConnection,SimpleDirectoryConnection], timeout: int = 300):
         if type(conn) is SimpleDirectoryConnection:
-            conn.check_for_data()
+            time.sleep(1)
+            cutoff_date = datetime.datetime.now() + datetime.timedelta(seconds=timeout)
+            while datetime.datetime.now() < cutoff_date:
+                logging.debug(f"Client {self.callsign} checking for connection conn {conn}")
+                if conn.check_for_data():
+                    break
         return super().receive(req, conn, timeout=timeout)
 
     def clear_connections(self):
@@ -71,8 +77,9 @@ class TestClient(Client):
                     time.sleep(.5)
                     pass
 
-    def start(self): # TODO
-        pass
+    def start(self):
+        self.started = True
 
-    def stop(self): # TODO
-        pass
+    def stop(self):
+        self.clear_connections()
+        self.started = False

@@ -83,7 +83,11 @@ def cli(ctx, conf, server, agwpe, port, callsign, keep_log):
 
     storage = ZODB.FileStorage.FileStorage(os.path.join(cfg['cli']['directory'], DEFAULT_DB_FILE))
     db = ZODB.DB(storage)
-    client = Client(ctx.obj['agwpe_server'], ctx.obj['port'], ctx.obj['callsign'], keep_log=ctx.obj['keep_log'])
+    if 'TEST_SERVER_DIR' in os.environ:
+        from packetserver.client.testing import TestClient
+        client = TestClient(os.environ['TEST_SERVER_DIR'], ctx.obj['callsign'])
+    else:
+        client = Client(ctx.obj['agwpe_server'], ctx.obj['port'], ctx.obj['callsign'], keep_log=ctx.obj['keep_log'])
     try:
         client.start()
     except Exception as e:

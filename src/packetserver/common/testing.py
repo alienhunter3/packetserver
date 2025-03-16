@@ -252,14 +252,17 @@ class SimpleDirectoryConnection:
         except msgpack.OutOfData as e:
             pass
 
-    def check_for_data(self):
+    def check_for_data(self) -> bool:
         """Monitors connection directory for data."""
         if self.closing:
             self._state = ConnectionState.DISCONNECTED
         if self.check_closed():
-            return
+            return False
         if os.path.isfile(self.remote_file_path):
             data = open(self.remote_file_path, 'rb').read()
             os.remove(self.remote_file_path)
             logging.debug(f"[SIMPLE] {self.local_callsign} detected data from {self.remote_callsign}: {data}")
             self.data.feed(data)
+            return True
+        else:
+            return False

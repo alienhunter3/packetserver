@@ -1,5 +1,5 @@
 """Module for handling requests as they arrive to connection objects and servers."""
-
+import ax25
 from msgpack.exceptions import OutOfData
 from packetserver.common import Message, Request, Response, PacketServerConnection, send_response, send_blank_response
 from .bulletin import bulletin_root_handler
@@ -28,10 +28,11 @@ def handle_root_get(req: Request, conn: PacketServerConnection,
             jobs_enabled = storage.root.config['jobs_enabled']
     logging.debug(f"Root handler retrieved config. {operator} - {motd}")
     logging.debug("Running user_authorized")
+    base = ax25.Address(conn.remote_callsign).call
     if user_authorized(conn, db):
-        user_message = f"User {conn.remote_callsign} is enabled."
+        user_message = f"User {base} is enabled."
     else:
-        user_message = f"User {conn.remote_callsign} is not enabled."
+        user_message = f"User {base} is not enabled."
     logging.debug(f"User authorized: {user_message}")
     response.payload = {
         'operator': operator,
