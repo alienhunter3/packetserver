@@ -270,13 +270,13 @@ def handle_user_update(req: Request, conn: PacketServerConnection, db: ZODB.DB):
         location = str(req.payload['location'])
 
     if 'status' in req.payload:
-        status = str(req.payload['stus'])
+        status = str(req.payload['status'])
 
     if 'email' in req.payload:
         email = req.payload['email']
-    if not email_valid(email):
-        send_blank_response(conn, req, status_code=400, payload="email must be valid format")
-        return
+        if not email_valid(email):
+            send_blank_response(conn, req, status_code=400, payload="email must be valid format")
+            return
 
     if 'socials' in req.payload:
         var_socials = req.payload['socials']

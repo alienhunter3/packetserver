@@ -1,7 +1,8 @@
 import os
 import os.path
 import click
-from packetserver.client.objects import ObjectWrapper, post_object, post_file, get_user_objects, get_object_by_uuid
+from packetserver.client.objects import (ObjectWrapper, post_object, post_file,
+                                         get_user_objects, get_object_by_uuid, delete_object_by_uuid)
 from packetserver.client.cli.util import exit_client, format_list_dicts
 from copy import deepcopy
 from uuid import UUID
@@ -47,6 +48,27 @@ def get(ctx, uuid):
     try:
         obj = get_object_by_uuid(client, ctx.obj['bbs'], u, include_data=True)
         click.echo(obj.data, nl=False)
+        exit_client(ctx.obj, 0)
+    except Exception as e:
+        click.echo(e, err=True)
+        exit_client(ctx.obj, 19)
+
+
+@click.command()
+@click.argument('uuid', required=True, type=str)
+@click.pass_context
+def delete(ctx, uuid):
+    """Delete the object identified by its UUID."""
+    client = ctx.obj['client']
+    u = ""
+    try:
+        u = UUID(uuid)
+    except ValueError as e:
+        click.echo(f"'{uuid}' is not a valid UUID.", err=True)
+        exit_client(ctx.obj, 13)
+
+    try:
+        delete_object_by_uuid(client, ctx.obj['bbs'], u)
         exit_client(ctx.obj, 0)
     except Exception as e:
         click.echo(e, err=True)
@@ -102,3 +124,4 @@ def list_objects(ctx, number, search, reverse, sort_by, output_format):
 objects.add_command(upload_file)
 objects.add_command(list_objects, name='list')
 objects.add_command(get)
+objects.add_command(delete)

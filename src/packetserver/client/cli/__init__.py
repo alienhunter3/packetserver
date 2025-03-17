@@ -154,10 +154,36 @@ def user(ctx, list_users, output_format, username):
     click.echo(format_list_dicts([x.pretty_dict() for x in output_objects], output_format=output_format.lower()))
     exit_client(ctx.obj, 0)
 
+@click.command()
+@click.option('--email', '-e', type=str, default=None, help="Sets your e-mail address in your profile.")
+@click.option('--bio', '-b', type=str, default=None, help="Sets your about you text in your profile.")
+@click.option('--status', '-S', type=str, default=None,
+              help="Sets your status (happy,sad, gone fishing, etc) in your profile.")
+@click.option('--location', '-l', type=str, default=None,
+              help="Sets your physical location (in whatever form you want) in your profile.")
+@click.option('--socials', '-m', type=str, default=None,
+              help="Comma (,) separated list of social media or websites you are known by.")
+@click.pass_context
+def set_user(ctx, email, bio, status, location, socials):
+    """Set your user profile settings on the BBS."""
+    social_list = None
+    client = ctx.obj['client']
+    if type(socials) is str:
+        social_list = socials.split(',')
+
+    try:
+        users.update_self(client, ctx.obj['bbs'], email=email, bio=bio, socials=social_list,
+                          location=location, status=status)
+        exit_client(ctx.obj, 0)
+    except Exception as e:
+        click.echo(str(e), err=True)
+        exit_client(ctx.obj, 98)
+
 cli.add_command(user)
 cli.add_command(query_server)
 cli.add_command(job, name='job')
 cli.add_command(objects, name='object')
+cli.add_command(set_user, name='set')
 
 if __name__ == '__main__':
     cli()
