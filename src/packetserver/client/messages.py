@@ -100,8 +100,9 @@ def send_message(client: Client, bbs_callsign: str, text: str, to: list[str],
         "to": to,
         "attachments": []
     }
-    for a in attachments:
-        payload["attachments"].append(a.to_dict())
+    if attachments is not None:
+        for a in attachments:
+            payload["attachments"].append(a.to_dict())
 
     req = Request.blank()
     req.path = "message"

@@ -118,5 +118,5 @@ def update_self(client: Client, bbs_callsign: str, email: str = None, bio: str =
     req.payload = payload
     response = client.send_receive_callsign(req, bbs_callsign)
     if response.status_code != 200:
-        raise RuntimeError(f"GET user {username} failed: {response.status_code}: {response.payload}")
+        raise RuntimeError(f"Updating profile failed: {response.status_code}: {response.payload}")
     return True

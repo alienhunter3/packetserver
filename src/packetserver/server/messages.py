@@ -234,6 +234,7 @@ class Message(persistent.Persistent):
                 send_counter = send_counter + 1
             for recipient in recipients:
                 msg = Message(self.text, recipient, self.msg_from, attachments=[x.copy() for x in new_attachments])
+                msg.msg_id = self.msg_id
                 try:
                     mailbox_create(recipient, db.root())
                     msg.msg_delivered = True
@@ -245,9 +246,11 @@ class Message(persistent.Persistent):
                 except:
                     logging.error(f"Error sending message to {recipient}:\n{format_exc()}")
                     failed.append(recipient)
-        self.msg_delivered = True
-        self.attachments = [x.copy() for x in new_attachments]
-        db.root.messages[self.msg_from.upper().strip()].append(msg)
+            self.msg_delivered = True
+            msg = Message(self.text, recipient, self.msg_from, attachments=[x.copy() for x in new_attachments])
+            msg.msg_id = self.msg_id
+            msg.msg_to = self.msg_to
+            db.root.messages[self.msg_from.upper().strip()].append(msg)
         return send_counter, failed, self.msg_id
 
 DisplayOptions = namedtuple('DisplayOptions', ['get_text', 'limit', 'sort_by', 'reverse', 'search',
@@ -451,7 +454,7 @@ def handle_message_post(req: Request, conn: PacketServerConnection, db: ZODB.DB)
     send_blank_response(conn, req, status_code=201, payload={
         "successes": send_counter,
         "failed": failed,
-        'msg_id': msg_id})
+        'msg_id': str(msg_id)})
 
 def message_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     logging.debug(f"{req} being processed by message_root_handler")
