@@ -338,12 +338,16 @@ def handle_messages_since(req: Request, conn: PacketServerConnection, db: ZODB.D
     with db.transaction() as db:
         mailbox_create(username, db.root())
         mb = db.root.messages[username]
+        logging.debug(f"Only grabbing messages since {since_date}")
         new_mb = [msg for msg in mb if msg.sent_at >= since_date]
+        if len(new_mb) > 0:
+            logging.debug(f"First message in new list: {new_mb[0].sent_at}")
+            logging.debug(f"Last message in new list: {new_mb[-1].sent_at}")
         if opts.search:
             messages = [msg for msg in new_mb if (opts.search in msg.text.lower()) or (opts.search in msg.msg_to[0].lower())
                         or (opts.search in msg.msg_from.lower())]
         else:
-            messages = [msg for msg in mb]
+            messages = [msg for msg in new_mb]
 
         if opts.sort_by == "from":
             messages.sort(key=lambda x: x.msg_from, reverse=opts.reverse)

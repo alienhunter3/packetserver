@@ -55,6 +55,8 @@ def cli(ctx, conf, server, agwpe, port, callsign, keep_log):
         else:
             ctx.obj['callsign'] = click.prompt('Please enter your station callsign (with ssid if needed)', type=str)
 
+    ctx.obj['directory'] = cfg['cli']['directory']
+
     if not ax25.Address.valid_call(ctx.obj['callsign']):
         click.echo(f"Provided client callsign '{ctx.obj['callsign']}' is invalid.", err=True)
         sys.exit(1)

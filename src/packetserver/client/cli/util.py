@@ -52,7 +52,9 @@ def exit_client(context: dict, return_code: int, message=""):
         click.echo(message, err=is_err)
     sys.exit(return_code)
 
-
-
-
-
+unit_seconds ={
+    'h': 3600,
+    'm': 60,
+    's': 1,
+    'd': 86400
+}

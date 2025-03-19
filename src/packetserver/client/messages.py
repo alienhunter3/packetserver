@@ -6,6 +6,7 @@ from packetserver.common.util import to_date_digits
 from typing import Union, Optional
 from uuid import UUID, uuid4
 import os.path
+import base64
 
 
 class AttachmentWrapper:
@@ -32,6 +33,21 @@ class AttachmentWrapper:
             return self._data['data']
         else:
             return self._data['data'].decode()
+
+    def to_dict(self, json: bool = True) -> dict:
+        d = {
+            "name": self.name,
+            "binary": self.binary,
+        }
+
+        if not self.binary:
+            d['data'] = self.data
+        else:
+            if json:
+                d['data'] = base64.b64encode(self.data).decode()
+            else:
+                d['data'] = self.data
+        return d
 
 class MessageWrapper:
     def __init__(self, data: dict):
@@ -66,6 +82,26 @@ class MessageWrapper:
         for a in self.data['attachments']:
             a_list.append(AttachmentWrapper(a))
         return a_list
+
+    def to_dict(self, json: bool = True) -> dict:
+        d = {
+            'text': self.text,
+            'sent': self.sent,
+            'id': self.msg_id,
+            'to': self.to_users,
+            'from': self.from_user,
+            'attachments': []
+        }
+
+        if json:
+            d['id'] = str(d['id'])
+            d['sent'] = d['sent'].isoformat()
+            for a in self.attachments:
+                d['attachments'].append(a.to_dict(json=True))
+        else:
+            for a in self.attachments:
+                d['attachments'].append(a.to_dict(json=False))
+        return d
 
 class MsgAttachment:
     def __init__(self, name: str, data: Union[bytes,str]):
@@ -113,11 +149,12 @@ def send_message(client: Client, bbs_callsign: str, text: str, to: list[str],
         raise RuntimeError(f"POST message failed: {response.status_code}: {response.payload}")
     return response.payload
 
-def get_message_uuid(client: Client, bbs_callsign: str, msg_id: UUID, ) -> MessageWrapper:
+def get_message_uuid(client: Client, bbs_callsign: str, msg_id: UUID, get_attachments: bool = True) -> MessageWrapper:
     req = Request.blank()
     req.path = "message"
     req.method = Request.Method.GET
     req.set_var('id', msg_id.bytes)
+    req.set_var('fetch_attachments', get_attachments)
     response = client.send_receive_callsign(req, bbs_callsign)
     if response.status_code != 200:
         raise RuntimeError(f"GET message failed: {response.status_code}: {response.payload}")
@@ -141,6 +178,7 @@ def get_messages_since(client: Client, bbs_callsign: str, since: datetime.dateti
     req.set_var('limit', limit)
     req.set_var('fetch_text', get_text)
     req.set_var('reverse', reverse)
+    req.set_var('fetch_attachments', get_attachments)
 
     if sort_by.strip().lower() not in ['date', 'from', 'to']:
         raise ValueError("sort_by must be in ['date', 'from', 'to']")
@@ -175,6 +213,7 @@ def get_messages(client: Client, bbs_callsign: str, get_text: bool = True, limit
     req.set_var('limit', limit)
     req.set_var('fetch_text', get_text)
     req.set_var('reverse', reverse)
+    req.set_var('fetch_attachments', get_attachments)
 
     if sort_by.strip().lower() not in ['date', 'from', 'to']:
         raise ValueError("sort_by must be in ['date', 'from', 'to']")

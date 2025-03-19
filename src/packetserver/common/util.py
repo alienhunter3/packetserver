@@ -19,7 +19,7 @@ def email_valid(email: str) -> bool:
 def to_date_digits(index: datetime.datetime) -> str:
     return f"{str(index.year).zfill(4)}{str(index.month).zfill(2)}{str(index.day).zfill(2)}{str(index.hour).zfill(2)}{str(index.minute).zfill(2)}{str(index.second).zfill(2)}"
 
-def from_date_digits(index: str) -> datetime:
+def from_date_digits(index: str, tz: datetime.timezone = datetime.UTC) -> datetime:
     ind = str(index)
     if not ind.isdigit():
         raise ValueError("Received invalid date digit string, containing non-digit chars.")
@@ -46,7 +46,7 @@ def from_date_digits(index: str) -> datetime:
     if len(ind) >= 14:
         second = int(ind[12:14])
 
-    return datetime.datetime(year, month, day ,hour, minute, second)
+    return datetime.datetime(year, month, day ,hour, minute, second, tzinfo=tz)
 
 def tar_bytes(file: Union[str, Iterable]) -> bytes:
     """Creates a tar archive in a temporary file with the specified files at root level.
