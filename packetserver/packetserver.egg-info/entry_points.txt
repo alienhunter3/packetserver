@@ -1,2 +1,0 @@
-[console_scripts]
-packcli = packetserver.client.cli:cli

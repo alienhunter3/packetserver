@@ -1,8 +1,0 @@
-click
-pyham_pe
-msgpack
-pyham_ax25
-ZODB
-ZEO
-podman
-tabulate
