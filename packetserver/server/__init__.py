@@ -25,7 +25,7 @@ from threading import Thread
 from packetserver.server.jobs import get_orchestrator_from_config, Job, JobStatus
 from packetserver.runner import RunnerStatus, RunnerFile, Orchestrator, Runner
 
-VERSION="0.4.0-alpha"
+VERSION="0.4.1"
 
 def init_bulletins(root: PersistentMapping):
     if 'bulletins' not in root:

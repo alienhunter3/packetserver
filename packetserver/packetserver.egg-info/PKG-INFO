@@ -1,0 +1,12 @@
+Metadata-Version: 2.2
+Name: packetserver
+Version: 0.4.1
+Requires-Dist: click
+Requires-Dist: pyham_pe
+Requires-Dist: msgpack
+Requires-Dist: pyham_ax25
+Requires-Dist: ZODB
+Requires-Dist: ZEO
+Requires-Dist: podman
+Requires-Dist: tabulate
+Dynamic: requires-dist

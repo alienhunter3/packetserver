@@ -2,8 +2,10 @@ from setuptools import setup, find_packages
 
 setup(
     name='packetserver',
-    version='VERSION="0.4.0-alpha',
-    packages=find_packages(),
+    version='0.4.1',
+    packages=[
+        'packetserver',
+        ],
     include_package_data=True,
     install_requires=[
         'click',

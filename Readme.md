@@ -77,8 +77,8 @@ UI packets later on..
 
 ### Main help dialog:
 ```commandline
-(venv) [user@host]$ packetcli
-Usage: packetcli [OPTIONS] COMMAND [ARGS]...
+(venv) [user@host]$ packcli
+Usage: packcli [OPTIONS] COMMAND [ARGS]...
 
   Command line interface for the PacketServer client and server API.
 
@@ -104,34 +104,34 @@ Commands:
 
 ### Working with objects:
 ```commandline
-(venv) [user@host]$ packetcli object list
+(venv) [user@host]$ packcli object list
 name               size_bytes  binary    private    created_at                        modified_at                       uuid
 ---------------  ------------  --------  ---------  --------------------------------  --------------------------------  ------------------------------------
 testdb.txt            13        False     True       2025-03-16T22:26:05.049173+00:00  2025-03-16T22:26:05.051375+00:00  fbbd4527-a5f0-447f-9fc9-55b7b263c458
 
-(venv) [user@host]$ packetcli object upload-file 
-Usage: packetcli object upload-file [OPTIONS] FILE_PATH
-Try 'packetcli object upload-file --help' for help.
+(venv) [user@host]$ packcli object upload-file 
+Usage: packcli object upload-file [OPTIONS] FILE_PATH
+Try 'packcli object upload-file --help' for help.
 
 Error: Missing argument 'FILE_PATH'.
 
-(venv) [user@host]$ packetcli object upload-file /tmp/hello-world.txt 
+(venv) [user@host]$ packcli object upload-file /tmp/hello-world.txt 
 35753577-21e3-4f64-8776-e3f86f1bb0e0
 
-(venv) [user@host]$ packetcli object list
+(venv) [user@host]$ packcli object list
 name               size_bytes  binary    private    created_at                        modified_at                       uuid
 ---------------  ------------  --------  ---------  --------------------------------  --------------------------------  ------------------------------------
 testdb.txt                 13  False     True       2025-03-16T22:26:05.049173+00:00  2025-03-16T22:26:05.051375+00:00  fbbd4527-a5f0-447f-9fc9-55b7b263c458
 hello-world.txt            13  False     True       2025-03-19T02:25:41.501833+00:00  2025-03-19T02:25:41.503502+00:00  35753577-21e3-4f64-8776-e3f86f1bb0e0
 
-(venv) packetcli object get 35753577-21e3-4f64-8776-e3f86f1bb0e0
+(venv) packcli object get 35753577-21e3-4f64-8776-e3f86f1bb0e0
 Hello world.
 
 ```
 
 ### Retrieving messages:
 ```commandline
-(venv) [user@host]$ packetcli message get 
+(venv) [user@host]$ packcli message get 
 from    to      id                                    text                             sent_at                           attachments
 ------  ------  ------------------------------------  -------------------------------  --------------------------------  -------------
 KQ4PEC  KQ4PEC  df7493d7-5880-4c24-9e3c-1d3987a5203e  testing.. again with attachment  2025-03-18T03:41:36.597371+00:00  random.txt
@@ -143,7 +143,7 @@ KQ4PEC  KQ4PEC  ad513075-e50f-4f84-8a87-a1217b43bef3  testing.. 1.. 2.. 3       
 
 ### Listing users:
 ```commandline
-(venv) [user@host]$ packetcli user -l
+(venv) [user@host]$ packcli user -l
 username    status                 bio    socials    created                           last_seen                         email            location
 ----------  ---------------------  -----  ---------  --------------------------------  --------------------------------  ---------------  ----------
 KQ4PEC      just happy to be here                    2025-03-16 04:29:52.044216+00:00  2025-03-19 02:22:21.413896+00:00  user@domain.com
