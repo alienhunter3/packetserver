@@ -7,6 +7,8 @@ import os.path
 from io import BytesIO, BufferedReader
 import random
 import string
+from persistent.mapping import PersistentMapping
+from persistent.list import PersistentList
 
 def email_valid(email: str) -> bool:
     """Taken from https://www.geeksforgeeks.org/check-if-email-address-valid-or-not-in-python/"""
@@ -149,3 +151,25 @@ class TarFileExtractor(object):
             name = str(name)
             self._count = self._count + 1
             return os.path.basename(name), self.tar_file.extractfile(member)
+
+def convert_to_persistent(data: Union[list,dict]):
+    if isinstance(data, dict):
+        persistent_dict = PersistentMapping()
+        for key, value in data.items():
+            persistent_dict[key] = convert_to_persistent(value)
+        return persistent_dict
+    elif isinstance(data, list):
+        return PersistentList([convert_to_persistent(item) for item in data])
+    else:
+        return data
+
+def convert_from_persistent(data):
+    if isinstance(data, PersistentMapping):
+        nonpersistent_dict = {}
+        for key, value in data.items():
+            nonpersistent_dict[key] = convert_from_persistent(value)
+        return nonpersistent_dict
+    elif isinstance(data, PersistentList):
+        return [convert_from_persistent(item) for item in data]
+    else:
+        return data

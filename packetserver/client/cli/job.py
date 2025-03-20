@@ -74,7 +74,14 @@ def quick_session(ctx, transcript):
         db_enabled = False
         if cmd == "":
             continue
-        if cmd == "/exit":
+        elif cmd in ["/h", "/?", '/H', "/help", "/HELP"]:
+            click.echo("""Enter a command to run in a container, or enter one of the following special commands:
+            '/h' | '/?' to get this help message
+            '/exit' | '/q' to exit
+            '/db' to have the remote job put a copy of your user's server db (messages/objects/etc) in a json file
+                in the remote container in the working directory.
+            """)
+        elif cmd in ["/exit", '/q', '/quit']:
             break
         elif cmd == "/db":
             click.echo("DB requested for next command.")

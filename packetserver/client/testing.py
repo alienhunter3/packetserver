@@ -4,7 +4,8 @@ from typing import Union
 
 from packetserver.common import Request, PacketServerConnection
 from packetserver.common.testing import SimpleDirectoryConnection
-from packetserver.client import Client
+from packetserver.client import Client, ConnectionClosedError
+from pe.connect import ConnectionState
 import ax25
 from threading import Lock
 import logging
@@ -59,6 +60,8 @@ class TestClient(Client):
             time.sleep(1)
             cutoff_date = datetime.datetime.now() + datetime.timedelta(seconds=timeout)
             while datetime.datetime.now() < cutoff_date:
+                if conn.state != ConnectionState.CONNECTED:
+                    raise ConnectionClosedError(f"Connection to {conn.remote_callsign} closed unexpectedly.")
                 logging.debug(f"Client {self.callsign} checking for connection conn {conn}")
                 if conn.check_for_data():
                     break

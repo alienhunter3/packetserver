@@ -101,9 +101,11 @@ def list_objects(ctx, number, search, reverse, sort_by, output_format):
         sort_name = True
     else:
         sort_date = True
-
-    object_list = get_user_objects(client, ctx.obj['bbs'], limit=number, include_data=False, search=search,
+    try:
+        object_list = get_user_objects(client, ctx.obj['bbs'], limit=number, include_data=False, search=search,
                                    reverse=reverse, sort_date=sort_date, sort_name=sort_name, sort_size=sort_size)
+    except Exception as e:
+        exit_client(ctx.obj, 19, message=str(e))
 
     obj_dicts = []
     for x in object_list:

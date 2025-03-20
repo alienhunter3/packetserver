@@ -3,9 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name='packetserver',
     version='0.4.1',
-    packages=[
-        'packetserver',
-        ],
+    packages=find_packages(),
     include_package_data=True,
     install_requires=[
         'click',
@@ -20,6 +18,7 @@ setup(
     entry_points={
         'console_scripts': [
             'packcli = packetserver.client.cli:cli',
+            'packcfg = packetserver.server.cli:config',
         ],
     },
 )

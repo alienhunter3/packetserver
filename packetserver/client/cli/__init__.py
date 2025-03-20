@@ -1,7 +1,7 @@
 import click
 from packetserver.client.cli.config import get_config, default_app_dir, config_path
 from packetserver.client.cli.constants import DEFAULT_DB_FILE
-from packetserver.client import Client
+from packetserver.client import Client, ConnectionClosedError
 from packetserver.common.constants import yes_values
 from packetserver.common import Request, Response
 from packetserver.client.cli.util import format_list_dicts, exit_client
@@ -115,7 +115,10 @@ def query_server(ctx):
     req = Request.blank()
     req.path = ""
     req.method = Request.Method.GET
-    resp = client.send_receive_callsign(req, ctx.obj['bbs'])
+    try:
+        resp = client.send_receive_callsign(req, ctx.obj['bbs'])
+    except Exception as e:
+        exit_client(ctx.obj, 2, str(e))
     if resp is None:
         click.echo(f"No response from {ctx.obj['bbs']}")
         exit_client(ctx.obj, 1)

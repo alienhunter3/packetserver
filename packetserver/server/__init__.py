@@ -90,7 +90,7 @@ class Server:
                 logging.debug("objects bucket missing, creating")
                 conn.root.objects = OOBTree()
             if 'jobs' not in conn.root():
-                logging.debug("jobss bucket missing, creating")
+                logging.debug("jobs bucket missing, creating")
                 conn.root.jobs = OOBTree()
             if 'job_queue' not in conn.root():
                 conn.root.job_queue = PersistentList()

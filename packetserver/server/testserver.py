@@ -3,7 +3,7 @@ from packetserver.common import Response, Message, Request, send_response, send_
 from packetserver.common.testing import DirectoryTestServerConnection, DummyPacketServerConnection
 from pe.connect import ConnectionState
 from shutil import rmtree
-from threading import Thread
+from threading import Thread, Lock
 from . import Server
 import os
 import os.path
@@ -50,10 +50,13 @@ class DirectoryTestServer(Server):
             raise NotADirectoryError(f"{connection_directory} is not a directory or doesn't exist.")
         self._file_traffic_dir = os.path.abspath(connection_directory)
         self._dir_connections = []
+        self._conn_lock = Lock()
+        self._conn_thread_running = False
 
     def check_connection_directories(self):
         logging.debug(f"Server checking connection directory {self._file_traffic_dir}")
         if not os.path.isdir(self._file_traffic_dir):
+            self._conn_thread_running = False
             raise NotADirectoryError(f"{self._file_traffic_dir} is not a directory or doesn't exist.")
 
         for path in os.listdir(self._file_traffic_dir):
@@ -91,13 +94,18 @@ class DirectoryTestServer(Server):
         for conn in closed:
             if conn in self._dir_connections:
                 self._dir_connections.remove(conn)
+        self._conn_thread_running = False
 
     def dir_worker(self):
         """Intended to be running as a thread."""
         logging.info("Starting worker thread.")
         while self.started:
             self.server_worker()
-            self.check_connection_directories()
+            with self._conn_lock:
+                if not self._conn_thread_running:
+                    self._conn_thread_running = True
+                    conn_thread = Thread(target=self.check_connection_directories)
+                    conn_thread.start()
             time.sleep(.5)
 
     def start(self):

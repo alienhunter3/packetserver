@@ -7,6 +7,7 @@ from typing import Union, Self, Optional
 import os.path
 import logging
 import ax25
+from shutil import rmtree
 
 class DummyPacketServerConnection(PacketServerConnection):
 
@@ -90,9 +91,17 @@ class DirectoryTestServerConnection(PacketServerConnection):
         file_path = os.path.join(self._directory, file_name)
         return file_path
 
+    def close(self):
+        self.closing = True
+        self._state = ConnectionState.DISCONNECTED
+        if os.path.exists(self._directory):
+            rmtree(self._directory)
+
     def check_closed(self):
         if self.closing:
             self._state = ConnectionState.DISCONNECTED
+            if os.path.exists(self._directory):
+                rmtree(self._directory)
         if self._state is not ConnectionState.CONNECTED:
             return True
         if not os.path.isdir(self._directory):
@@ -256,6 +265,7 @@ class SimpleDirectoryConnection:
         """Monitors connection directory for data."""
         if self.closing:
             self._state = ConnectionState.DISCONNECTED
+            logging.debug(f"Connection {self} closed.")
         if self.check_closed():
             return False
         if os.path.isfile(self.remote_file_path):

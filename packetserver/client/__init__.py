@@ -16,6 +16,10 @@ from os import linesep
 from shutil import rmtree
 from threading import Thread
 
+class ConnectionClosedError(Exception):
+    """Raised when a connection closes unexpectedly."""
+    pass
+
 class Client:
     def __init__(self, pe_server: str, port: int, client_callsign: str, keep_log=False):
         if not ax25.Address.valid_call(client_callsign):
@@ -106,7 +110,7 @@ class Client:
         conn =  self.app.open_connection(0, self.callsign, dest.upper())
         while conn.state.name != "CONNECTED":
             if conn.state.name in ['DISCONNECTED', 'DISCONNECTING']:
-                raise RuntimeError("Connection disconnected unexpectedly.")
+                raise ConnectionClosedError(f"Connection to {conn.remote_callsign} closed unexpectedly.")
             time.sleep(.1)
         logging.debug(f"Connection to {dest} ready.")
         logging.debug("Allowing connection to stabilize for 8 seconds")
@@ -121,7 +125,7 @@ class Client:
                 logging.error(f"Connection {conn} disconnected.")
                 if self.keep_log:
                     self.request_log.append((req, None))
-                return None
+                raise ConnectionClosedError(f"Connection to {conn.remote_callsign} closed unexpectedly.")
             try:
                 unpacked = conn.data.unpack()
             except:
@@ -136,7 +140,7 @@ class Client:
     def send_and_receive(self, req: Request, conn: Union[PacketServerConnection,SimpleDirectoryConnection],
                          timeout: int = 300) -> Optional[Response]:
         if conn.state.name != "CONNECTED":
-            raise RuntimeError("Connection is not connected.")
+            raise ConnectionClosedError(f"Connection to {conn.remote_callsign} closed unexpectedly.")
         logging.debug(f"Sending request {req}")
         dest = conn.remote_callsign.upper()
         with self.lock_locker:
@@ -160,7 +164,7 @@ class Client:
         while (datetime.datetime.now() < cutoff_date) and (conn.state.name != "CONNECTED"):
             if conn.state.name in ["DISCONNECTED", "DISCONNECTING"]:
                 logging.error(f"Connection {conn} disconnected.")
-                return None
+                raise ConnectionClosedError(f"Connection to {conn.remote_callsign} closed unexpectedly.")
 
         remaining_time = int((cutoff_date - datetime.datetime.now()).total_seconds()) + 1
         if remaining_time <= 0:
