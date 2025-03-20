@@ -82,6 +82,10 @@ def handle_bulletin_get(req: Request, conn: PacketServerConnection, db: ZODB.DB)
     logging.debug(f"bulletin get path: {sp}")
     bid = None
     limit = None
+    only_subject = False
+    if 'no_body' in req.vars:
+        if type(req.vars['no_body']) is bool:
+            only_subject = req.vars['no_body']
     if 'limit' in req.vars:
         try:
             limit = int(req.vars['limit'])
@@ -107,6 +111,8 @@ def handle_bulletin_get(req: Request, conn: PacketServerConnection, db: ZODB.DB)
             bull = Bulletin.get_bulletin_by_id(bid, db.root())
             if bull:
                 response.payload = bull.to_dict()
+                if only_subject:
+                    response.payload['body'] = ''
                 response.status_code = 200
             else:
                 response.status_code = 404
@@ -114,6 +120,9 @@ def handle_bulletin_get(req: Request, conn: PacketServerConnection, db: ZODB.DB)
             logging.debug(f"retrieving all bulletins")
             bulls = Bulletin.get_recent_bulletins(db.root(), limit=limit)
             response.payload = [bulletin.to_dict() for bulletin in bulls]
+            if only_subject:
+                for b in response.payload:
+                    b['body'] = ''
             response.status_code = 200
 
     send_response(conn, response, req)
@@ -139,10 +148,38 @@ def handle_bulletin_update(req: Request, conn: PacketServerConnection, db: ZODB.
     send_response(conn, response, req)
 
 def handle_bulletin_delete(req: Request, conn: PacketServerConnection, db: ZODB.DB): # TODO
-    response = Response.blank()
+    username = ax25.Address(conn.remote_callsign).call.upper().strip()
+    sp = req.path.split("/")
+    if len(sp) > 1:
+        logging.debug(f"checking path for bulletin id")
+        try:
+            logging.debug(f"{sp[1]}")
+            bid = int(sp[1].strip())
+        except ValueError:
+            send_blank_response(conn, req, 400, "Invalid path.")
+            return
+    elif 'id' in req.vars:
+        try:
+            bid = int(req.vars['id'])
+        except ValueError:
+            send_blank_response(conn, req, 400, "Invalid id.")
+            return
+    else:
+        send_blank_response(conn, req, 400)
+        return
+
     with db.transaction() as db:
-        pass
-    send_response(conn, response, req)
+        bull = Bulletin.get_bulletin_by_id(bid, db.root())
+        if bull:
+            if username != bull.author:
+                send_blank_response(conn, req, 401)
+                return
+            db.root.bulletins.remove(bull)
+            send_blank_response(conn, req, 200)
+            return
+        else:
+            send_blank_response(conn, req, 404)
+
 
 def bulletin_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.DB):
     logging.debug(f"{req} being processed by bulletin_root_handler")
@@ -155,5 +192,7 @@ def bulletin_root_handler(req: Request, conn: PacketServerConnection, db: ZODB.D
         handle_bulletin_get(req, conn, db)
     elif req.method is Request.Method.POST:
         handle_bulletin_post(req, conn, db)
+    elif req.method is Request.Method.DELETE:
+        handle_bulletin_delete(req, conn ,db)
     else:
         send_blank_response(conn, req, status_code=404)

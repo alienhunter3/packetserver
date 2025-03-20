@@ -8,6 +8,7 @@ from packetserver.client.cli.util import format_list_dicts, exit_client
 from packetserver.client.cli.job import job
 from packetserver.client.cli.object import objects
 from packetserver.client.cli.message import message
+from packetserver.client.cli.bulletin import bulletin
 import ZODB
 import ZODB.FileStorage
 import ax25
@@ -191,6 +192,7 @@ cli.add_command(job, name='job')
 cli.add_command(objects, name='object')
 cli.add_command(set_user, name='set')
 cli.add_command(message)
+cli.add_command(bulletin)
 
 if __name__ == '__main__':
     cli()
