@@ -10,7 +10,7 @@ import os.path
 @click.group()
 @click.pass_context
 def bulletin(ctx):
-    """List and create bulletins on the BBS."""
+    """List, create, and delete bulletins on the BBS."""
     pass
 
 
@@ -18,9 +18,10 @@ def bulletin(ctx):
 @click.argument("subject", type=str)
 @click.argument("body", type=str)
 @click.option('--from-file', '-f', is_flag=True, default=False,
-              help="Get body text from file or stdin ('-').")
+              help="Get body text from specified file or stdin ('-').")
 @click.pass_context
 def post(ctx, subject, body, from_file):
+    """Post a bulletin with a subject and body text."""
     client = ctx.obj['client']
     bbs = ctx.obj['bbs']
     if subject.strip() == "":
@@ -51,6 +52,7 @@ def post(ctx, subject, body, from_file):
               type=click.Choice(['table', 'json', 'list'], case_sensitive=False))
 @click.pass_context
 def list_bulletin(ctx, number, only_subject, output_format):
+    """List recent bulletins."""
     client = ctx.obj['client']
     bbs = ctx.obj['bbs']
     if number == 0:
@@ -71,6 +73,7 @@ def list_bulletin(ctx, number, only_subject, output_format):
               type=click.Choice(['table', 'json', 'list'], case_sensitive=False))
 @click.pass_context
 def get(ctx, bid, only_subject, output_format):
+    """Fetch the bulletin specified by bulletin ID."""
     client = ctx.obj['client']
     bbs = ctx.obj['bbs']
 
@@ -81,6 +84,23 @@ def get(ctx, bid, only_subject, output_format):
     except Exception as e:
         exit_client(ctx.obj, 2, message=str(e))
 
+
+@click.command()
+@click.argument("bid", metavar="<BULLETIN ID>", type=int)
+@click.pass_context
+def delete(ctx, bid):
+    """Delete the bulletin (that you authored) specified with bulletin id."""
+    client = ctx.obj['client']
+    bbs = ctx.obj['bbs']
+
+    try:
+        delete_bulletin_by_id(client, bbs, bid)
+        exit_client(ctx.obj, 0)
+    except Exception as e:
+        exit_client(ctx.obj, 2, message=str(e))
+
+
 bulletin.add_command(post)
 bulletin.add_command(list_bulletin, name = "list")
 bulletin.add_command(get)
+bulletin.add_command(delete)

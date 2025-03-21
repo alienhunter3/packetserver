@@ -3,10 +3,12 @@ from packetserver.common import Request, Response, PacketServerConnection
 from typing import Union, Optional
 import datetime
 import time
+from base64 import b64encode
 
 class JobWrapper:
     def __init__(self, data: dict):
-        for i in ['output', 'errors', 'artifacts', 'return_code', 'status']:
+        for i in ['output', 'errors', 'artifacts', 'return_code', 'status', 'created_at', 'finished_at', 'id', 'cmd',
+                  'owner']:
             if i not in data:
                 raise ValueError("Was not given a job dictionary.")
         self.data = data
@@ -72,6 +74,38 @@ class JobWrapper:
     def id(self) -> int:
         return self.data['id']
 
+    # ['output', 'errors', 'artifacts', 'return_code', 'status', 'created_at', 'finished_at', 'id', 'cmd',
+    #                   'owner']
+
+    def to_dict(self, json=True):
+        d = {
+            'id': self.id,
+            'return_code': self.return_code,
+            'status': self.status,
+            'created': self.created,
+            'finished': self.finished,
+            'cmd': self.cmd,
+            'owner': self.owner,
+            'artifacts': [],
+            'output': self.output_str,
+            'output_bytes': self.output_raw,
+            'errors': self.errors_str,
+        }
+        if json:
+            d['output_bytes'] = b64encode(self.output_raw).decode()
+            if self.created is not None:
+                d['created'] = self.created.isoformat()
+            if self.finished is not None:
+                d['finished'] = self.finished.isoformat()
+
+        for a in self.artifacts:
+            if json:
+                d['artifacts'].append((a[0], b64encode(a[1]).decode()))
+            else:
+                d['artifacts'].append(a)
+
+        return d
+
     def __repr__(self):
         return f"<Job {self.id} - {self.owner} - {self.status}>"
 
@@ -126,17 +160,22 @@ def get_job_id(client: Client, bbs_callsign: str, job_id: int, get_data=True) ->
         raise RuntimeError(f"GET job {job_id} failed: {response.status_code}: {response.payload}")
     return JobWrapper(response.payload)
 
-def get_user_jobs(client: Client, bbs_callsign: str, get_data=True) -> list[JobWrapper]:
+def get_user_jobs(client: Client, bbs_callsign: str, get_data=True, id_only=False) -> list[Union[JobWrapper,int]]:
     req = Request.blank()
     req.path = f"job/user"
     req.set_var('data', get_data)
+    if id_only:
+        req.set_var('id_only', True)
     req.method = Request.Method.GET
     response = client.send_receive_callsign(req, bbs_callsign)
     if response.status_code != 200:
         raise RuntimeError(f"GET user jobs failed: {response.status_code}: {response.payload}")
     jobs = []
     for j in response.payload:
-        jobs.append(JobWrapper(j))
+        if id_only:
+            jobs.append(j)
+        else:
+            jobs.append(JobWrapper(j))
     return jobs
 
 class JobSession:

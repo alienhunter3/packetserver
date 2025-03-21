@@ -111,14 +111,14 @@ class Message:
     def get_var(self, key: str):
         if 'v' not in self.data:
             raise KeyError(f"Variable '{key}' not found.")
-        if str(key) not in self.data['v']:
+        if str(key).lower() not in self.data['v']:
             raise KeyError(f"Variable '{key}' not found.")
-        return self.data['v'][str(key)]
+        return self.data['v'][str(key).lower()]
 
     def set_var(self, key: str, value):
         if 'v' not in self.data:
             self.data['v'] = {}
-        self.data['v'][str(key)] = value
+        self.data['v'][str(key).lower()] = value
 
     @property
     def data_bytes(self):

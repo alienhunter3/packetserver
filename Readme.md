@@ -77,6 +77,10 @@ UI packets later on..
 
 ### Main help dialog:
 ```commandline
+(venv) [user@host]$ export PSCLIENT_SERVER=KQ4PEC
+(venv) [user@host]$ export PSCLIENT_AGWPE=localhost
+(venv) [user@host]$ export PSCLIENT_PORT=8000
+(venv) [user@host]$ export PSCLIENT_CALLSIGN=KQ4PEC-7
 (venv) [user@host]$ packcli
 Usage: packcli [OPTIONS] COMMAND [ARGS]...
 
@@ -100,6 +104,47 @@ Commands:
   query-server  Query the server for basic info.
   set           Set your user profile settings on the BBS.
   user          Query users on the BBS.
+```
+
+### Running jobs on the remote server:
+```commandline
+(venv) [user@host]$ packcli job start -- ls -l /                                                                                       
+67                                                                                                                                                             
+(venv) [user@host]$ packcli job get                                                                                                    
+You must either supply a job id, or --all-jobs                                                                                                                 
+(venv) [user@host]$ packcli job get 67                                                                                                 
+-----------  ------------------------------------------------------------------                                                                                
+id           67                                                                                                                                                
+return_code  0                                                                                                                                                 
+status       SUCCESSFUL                                                                                                                                        
+created      2025-03-21T00:15:41.142544+00:00                                                                                                                  
+finished     2025-03-20T20:15:46.257489                                                                                                                        
+cmd          ['ls', '-l', '/']                                                                                                                                 
+owner        KQ4PEC                                                                                                                                            
+artifacts                                                                                                                                                      
+output       total 4                                                                                                                                           
+             drwxr-xr-x   2 root   root      40 Mar 21 00:14 artifact_output                                                                                   
+             lrwxrwxrwx   1 root   root       7 Mar 11  2024 bin -> usr/bin                                                                                                                                                                                                                                                    
+             drwxr-xr-x   2 root   root       6 Jan 28  2024 boot                                                                                              
+             drwxr-xr-x   5 root   root     340 Mar 21 00:14 dev                                                                                               
+             drwxr-xr-x   1 root   root    4096 Mar 21 00:14 etc                                                                                                                                                                                                                                                               
+             drwxr-xr-x   1 root   root      20 Mar 21 00:14 home                                                                                                                                                                                                                                                              
+             lrwxrwxrwx   1 root   root       7 Mar 11  2024 lib -> usr/lib                                                                                    
+             lrwxrwxrwx   1 root   root       9 Mar 11  2024 lib64 -> usr/lib64                                                                                
+             drwxr-xr-x   2 root   root       6 Mar 11  2024 media                                                                                             
+             drwxr-xr-x   2 root   root       6 Mar 11  2024 mnt                                                                                               
+             drwxr-xr-x   2 root   root       6 Mar 11  2024 opt                                                                                               
+             dr-xr-xr-x 534 nobody nogroup    0 Mar 21 00:14 proc                                                                                              
+             drwx------   1 root   root      21 Mar 21 00:14 root                                                                                              
+             drwxr-xr-x   1 root   root      27 Mar 21 00:14 run                                                                                               
+             lrwxrwxrwx   1 root   root       8 Mar 11  2024 sbin -> usr/sbin                                                                                  
+             drwxr-xr-x   2 root   root       6 Mar 11  2024 srv                                                                                               
+             dr-xr-xr-x  13 nobody nogroup    0 Mar 21 00:14 sys                                                                                               
+             drwxrwxrwt   1 root   root       6 Feb 16 02:08 tmp                                                                                               
+             drwxr-xr-x   1 root   root      66 Mar 11  2024 usr                                                                                                                                                                                                                                                               
+             drwxr-xr-x   1 root   root      41 Mar 11  2024 var                                                                                               
+errors                                                                                                                                                         
+-----------  ------------------------------------------------------------------
 ```
 
 ### Working with objects:

@@ -226,10 +226,9 @@ def handle_job_get_id(req: Request, conn: PacketServerConnection, db: ZODB.DB, j
     username = ax25.Address(conn.remote_callsign).call.upper().strip()
     value = "y"
     include_data = True
-    for key in req.vars:
-        if key.lower().strip() == "data":
-            value = req.vars[key].lower().strip()
-    if value in no_values:
+    data_val = req.vars['data']
+    if data_val in no_values:
+        logging.debug(f"Not including job data per variable setting in request. 'data': {req.vars['data']} ")
         include_data = False
 
     with db.transaction() as storage:
@@ -254,7 +253,9 @@ def handle_job_get_user(req: Request, conn: PacketServerConnection, db: ZODB.DB)
     include_data = True
     for key in req.vars:
         if key.lower().strip() == "data":
-            value = req.vars[key].lower().strip()
+            value = req.vars[key]
+            if type(value) is str:
+                value = value.lower().strip()
     if value in no_values:
         include_data = False
     id_only = False

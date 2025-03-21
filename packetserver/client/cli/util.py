@@ -48,6 +48,7 @@ def exit_client(context: dict, return_code: int, message=""):
         is_err = False
     else:
         is_err = True
+    message = str(message)
     if message.strip() != "":
         click.echo(message, err=is_err)
     sys.exit(return_code)
