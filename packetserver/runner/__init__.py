@@ -83,7 +83,7 @@ class Runner:
         self.args = args
         self.job_id = int(job_id)
         self.env = {}
-        self.started_at = datetime.datetime.now()
+        self.started_at = datetime.datetime.now(datetime.UTC)
         self.finished_at = None
         self._result = (0,(b'', b''))
         self._artifact_archive = b''

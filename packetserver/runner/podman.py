@@ -81,7 +81,7 @@ class PodmanRunner(Runner):
         except:
             logging.warning(f"Error retrieving artifacts for {self.job_id}:\n{format_exc()}")
             self._artifact_archive = b''
-        self.finished_at = datetime.datetime.now()
+        self.finished_at = datetime.datetime.now(datetime.UTC)
         # set final status to FAILED or SUCCEEDED
         if self.return_code == 0:
             self.status = RunnerStatus.SUCCESSFUL
