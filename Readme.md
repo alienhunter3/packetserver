@@ -29,7 +29,6 @@ UI packets later on..
 - A way to connect the radio to a Linux machine (for hosting using the container orchestrator) or just anything that runs Python for the client. I recommend DigiRig.
 - A TNC that provides an AGWPE interface. Direwolf works; there are others for different platforms.
 - Recent Python (Python 3.11+.)
-- A version of the pyham_pe package that fixes the minor bug with incoming connections. (https://github.com/alienhunter3/pyham_pe_bugfix_incoming_connections)
 
 
 ## Features completed:
