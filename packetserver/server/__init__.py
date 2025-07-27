@@ -48,7 +48,7 @@ class Server:
         self.orchestrator = None
         self.worker_thread = None
         self.check_job_queue = True
-        self.last_check_job_queue = datetime.datetime.now()
+        self.last_check_job_queue = datetime.datetime.now(datetime.UTC)
         self.job_check_interval = 60
         self.quick_job = False
         if data_dir:
@@ -120,7 +120,7 @@ class Server:
 
     def ping_job_queue(self):
         self.check_job_queue = True
-        self.last_check_job_queue = datetime.datetime.now()
+        self.last_check_job_queue = datetime.datetime.now(datetime.UTC)
         if self.quick_job:
             logging.debug("Setting the final quick job timer.")
             self.job_check_interval = 5
@@ -220,7 +220,7 @@ class Server:
         if not self.started:
             return
         # Add things to do here:
-        now = datetime.datetime.now()
+        now = datetime.datetime.now(datetime.UTC)
         if (now - self.last_check_job_queue).total_seconds() > self.job_check_interval:
             self.ping_job_queue()
         if (self.orchestrator is not None) and self.orchestrator.started and self.check_job_queue:
@@ -239,7 +239,7 @@ class Server:
                         if runner is not None:
                             storage.root.job_queue.remove(jid)
                             job.status = JobStatus.RUNNING
-                            job.started_at = datetime.datetime.now()
+                            job.started_at = datetime.datetime.now(datetime.UTC)
                             logging.info(f"Started job {job}")
                     else:
                         break

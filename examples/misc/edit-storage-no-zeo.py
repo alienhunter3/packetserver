@@ -14,8 +14,8 @@ def all_done():
     storage.close()
 
 #port = int(sys.argv[1])
-storage = ZODB.FileStorage.FileStorage('/tmp/tmp_ps_data/data.zopedb')
-#storage = ZODB.FileStorage.FileStorage('/home/alienhunter/.packetserver/data.zopedb')
+#storage = ZODB.FileStorage.FileStorage('/tmp/tmp_ps_data/data.zopedb')
+storage = ZODB.FileStorage.FileStorage('/home/alienhunter/.packetserver/data.zopedb')
 #db = ZEO.DB(('127.0.0.1',port))
 db = ZODB.DB(storage)
 c = db.open()

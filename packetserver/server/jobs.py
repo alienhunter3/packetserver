@@ -67,7 +67,7 @@ class Job(persistent.Persistent):
             return False
         if not runner.is_finished():
             return False
-        job.finished_at = datetime.datetime.now()
+        job.finished_at = datetime.datetime.now(datetime.UTC)
         job.output = runner.output
         job.errors = runner.errors
         job.return_code = runner.return_code
@@ -327,8 +327,8 @@ def handle_new_job_post(req: Request, conn: PacketServerConnection, db: ZODB.DB)
             send_blank_response(conn, req, 500, "unknown server error while queuing job")
             return
     if quick:
-        start_time = datetime.datetime.now()
-        now = datetime.datetime.now()
+        start_time = datetime.datetime.now(datetime.UTC)
+        now = datetime.datetime.now(datetime.UTC)
         job_done = False
         quick_job = None
         logging.debug(f"{start_time}: Waiting for a quick job for 30 seconds")
@@ -343,7 +343,7 @@ def handle_new_job_post(req: Request, conn: PacketServerConnection, db: ZODB.DB)
                 except:
                     pass
             time.sleep(1)
-            now = datetime.datetime.now()
+            now = datetime.datetime.now(datetime.UTC)
         if job_done and (type(quick_job) is Job):
             send_blank_response(conn, req, 200, job.to_dict(include_data=True))
         else:

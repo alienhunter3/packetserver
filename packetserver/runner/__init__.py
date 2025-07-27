@@ -112,7 +112,7 @@ class Runner:
         return False
 
     def start(self):
-        self.started = datetime.datetime.now()
+        self.started = datetime.datetime.now(datetime.UTC)
 
     def stop(self):
         raise RuntimeError("Attempting to stop an abstract class.")

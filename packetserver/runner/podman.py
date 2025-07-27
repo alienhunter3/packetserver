@@ -244,11 +244,11 @@ class PodmanOrchestrator(Orchestrator):
                                             environment=container_env, user="root")
         con.start()
         logging.debug(f"Container started for {username} from image {self.opts.image_name}")
-        started_at = datetime.datetime.now()
+        started_at = datetime.datetime.now(datetime.UTC)
         logging.debug(f"Container state: \n{con.inspect()['State']}")
         while con.inspect()['State']['Status'] not in ['exited', 'running']:
             logging.debug("Container state not in ['exited', 'running']")
-            now = datetime.datetime.now()
+            now = datetime.datetime.now(datetime.UTC)
             if (now - started_at).total_seconds() > 300:
                 con.stop()
                 con.remove()
@@ -344,7 +344,7 @@ class PodmanOrchestrator(Orchestrator):
 
 
     def touch_user_container(self, username: str):
-        self.user_containers[self.get_container_name(username)] = datetime.datetime.now()
+        self.user_containers[self.get_container_name(username)] = datetime.datetime.now(datetime.UTC)
 
     def start_user_container(self, username: str) -> Container:
         if not self.podman_user_container_exists(username):
@@ -357,7 +357,7 @@ class PodmanOrchestrator(Orchestrator):
         """Checks running containers and stops them if they have been running too long."""
         containers_to_clean = set()
         for c in self.user_containers:
-            if (datetime.datetime.now() - self.user_containers[c]).total_seconds() > self.opts.container_keepalive:
+            if (datetime.datetime.now(datetime.UTC) - self.user_containers[c]).total_seconds() > self.opts.container_keepalive:
                 logging.debug(f"Container {c} no activity for {self.opts.container_keepalive} seconds. Clearing.")
                 containers_to_clean.add(c)
         for c in list(containers_to_clean):
