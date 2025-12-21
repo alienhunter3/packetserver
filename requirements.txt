@@ -8,3 +8,8 @@ ZEO
 podman
 click
 tabulate
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+argon2-cffi
