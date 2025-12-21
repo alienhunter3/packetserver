@@ -18,10 +18,9 @@ import ZODB.FileStorage
 import ZODB.DB
 import transaction
 from persistent.mapping import PersistentMapping
-from persistent.list import PersistentList
 
 # Import our HTTP package internals
-from packetserver.http.auth import HttpUser, ph  # ph = PasswordHasher from auth.py
+from packetserver.http.auth import HttpUser, ph  # ph = PasswordHasher
 from packetserver.http.database import HTTP_USERS_KEY
 
 
@@ -29,8 +28,7 @@ def open_database(db_arg: str) -> ZODB.DB.DB:
     """
     Open a ZODB database from either a local FileStorage path or ZEO address.
     """
-    if ":" in db_arg and db_arg.count(":") == 1 and db_arg.split(":")[0].count(".") in (1, 3):
-        # Looks like host:port (simple heuristic – one colon, host has dots)
+    if ":" in db_arg and db_arg.count(":") == 1 and "." in db_arg.split(":")[0]:
         import ZEO
         host, port_str = db_arg.split(":")
         try:
@@ -41,8 +39,6 @@ def open_database(db_arg: str) -> ZODB.DB.DB:
         return ZODB.DB(storage)
     else:
         # Local FileStorage path
-        if not db_arg.endswith(".fs"):
-            print("Warning: Local DB path does not end in .fs – assuming FileStorage")
         storage = ZODB.FileStorage.FileStorage(db_arg)
         return ZODB.DB(storage)
 
@@ -118,14 +114,13 @@ def main():
             http_user = HttpUser(args.callsign, password)
             users_mapping[callsign] = http_user
 
-            # ALSO: Ensure a corresponding regular BBS user exists
-            # This keeps the callsign registered in the main system (for messaging, heard, etc.)
-            from packetserver.server.users import User  # import here to avoid circular issues
+            # Sync: create corresponding regular BBS user using proper write_new for UUID/uniqueness
+            from packetserver.server.users import User
 
             main_users = root.setdefault('users', PersistentMapping())
             if callsign not in main_users:
-                main_users[callsign] = User(callsign)
-                print(f"  → Also created regular BBS user {callsign}")
+                User.write_new(main_users, args.callsign)
+                print(f"  → Also created regular BBS user {callsign} (with UUID)")
             else:
                 print(f"  → Regular BBS user {callsign} already exists")
 
@@ -145,7 +140,7 @@ def main():
 
         elif args.command == "set-password":
             callsign = upper_callsign(args.callsign)
-            user: HttpUser = users_mapping.get(callsign)
+            user = users_mapping.get(callsign)
             if not user:
                 print(f"Error: User {callsign} not found")
                 sys.exit(1)
@@ -158,7 +153,51 @@ def main():
             transaction.commit()
             print(f"Password updated for {callsign}")
 
-        # ... (enable, disable, rf-enable, rf-disable unchanged – just use upper_callsign and commit)
+        elif args.command == "enable":
+            callsign = upper_callsign(args.callsign)
+            user = users_mapping.get(callsign)
+            if not user:
+                print(f"Error: User {callsign} not found")
+                sys.exit(1)
+            user.enabled = True
+            user._p_changed = True
+            transaction.commit()
+            print(f"HTTP access enabled for {callsign}")
+
+        elif args.command == "disable":
+            callsign = upper_callsign(args.callsign)
+            user = users_mapping.get(callsign)
+            if not user:
+                print(f"Error: User {callsign} not found")
+                sys.exit(1)
+            user.enabled = False
+            user._p_changed = True
+            transaction.commit()
+            print(f"HTTP access disabled for {callsign}")
+
+        elif args.command == "rf-enable":
+            callsign = upper_callsign(args.callsign)
+            user = users_mapping.get(callsign)
+            if not user:
+                print(f"Error: User {callsign} not found")
+                sys.exit(1)
+            try:
+                user.rf_enabled = True
+                transaction.commit()
+                print(f"RF gateway enabled for {callsign}")
+            except ValueError as e:
+                print(f"Error: {e}")
+                sys.exit(1)
+
+        elif args.command == "rf-disable":
+            callsign = upper_callsign(args.callsign)
+            user = users_mapping.get(callsign)
+            if not user:
+                print(f"Error: User {callsign} not found")
+                sys.exit(1)
+            user.rf_enabled = False
+            transaction.commit()
+            print(f"RF gateway disabled for {callsign}")
 
         elif args.command == "list":
             if not users_mapping:
@@ -171,8 +210,6 @@ def main():
                     last = (time.strftime("%Y-%m-%d %H:%M", time.localtime(user.last_login))
                             if user.last_login else "-")
                     print(f"{user.username:<12} {str(user.enabled):<8} {str(user.rf_enabled):<11} {created:<20} {last}")
-
-        transaction.commit()  # final safety
 
     finally:
         connection.close()
