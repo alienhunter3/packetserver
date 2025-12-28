@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Job {{ job.id }} - {{ job.cmd|truncate(50) }}{% endblock %}
+
+{% block content %}
+<h2>Job #{{ job.id }}</h2>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                Command
+            </div>
+            <div class="card-body">
+                <pre><code>{% if job.cmd is string %}{{ job.cmd }}{% else %}{{ job.cmd|join(' ') }}{% endif %}</code></pre>
+            </div>
+        </div>
+
+        {% if job.output or job.errors %}
+        <div class="card mb-4">
+            <div class="card-header">
+                Output & Errors
+            </div>
+            <ul class="nav nav-tabs card-header-tabs">
+                {% if job.output %}
+                <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="tab" href="#output">Stdout</a>
+                </li>
+                {% endif %}
+                {% if job.errors %}
+                <li class="nav-item">
+                    <a class="nav-link{% if not job.output %} active{% endif %}" data-bs-toggle="tab" href="#errors">Stderr</a>
+                </li>
+                {% endif %}
+            </ul>
+            <div class="card-body tab-content">
+                {% if job.output %}
+                <div class="tab-pane fade show active" id="output">
+                    <pre><code>{{ job.output | b64decode | forceescape }}</code></pre>
+                </div>
+                {% endif %}
+                {% if job.errors %}
+                <div class="tab-pane fade{% if job.output %} show{% else %} show active{% endif %}" id="errors">
+                    <pre><code>{{ job.errors | b64decode | forceescape }}</code></pre>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if job.artifacts %}
+        <div class="card">
+            <div class="card-header">Artifacts</div>
+            <div class="card-body">
+                <ul class="list-group">
+                {% for name, b64 in job.artifacts %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    {{ name }}
+                    <a href="data:application/octet-stream;base64,{{ b64 }}" download="{{ name }}" class="btn btn-sm btn-primary">Download</a>
+                </li>
+                {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">Job Details</div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item"><strong>Status:</strong>
+                    {% set status = job.status | upper %}
+                    {% if status == "QUEUED" %}
+                    <span class="badge bg-secondary">Queued</span>
+                    {% elif status == "RUNNING" %}
+                    <span class="badge bg-primary">Running</span>
+                    {% elif status == "COMPLETED" %}
+                    <span class="badge bg-success">Completed</span>
+                    {% elif status == "FAILED" %}
+                    <span class="badge bg-danger">Failed</span>
+                    {% elif status == "CANCELLED" %}
+                    <span class="badge bg-warning">Cancelled</span>
+                    {% else %}
+                    <span class="badge bg-light text-dark">{{ job.status }}</span>
+                    {% endif %}
+                </li>
+                <li class="list-group-item"><strong>Owner:</strong> {{ job.owner }}</li>
+                <li class="list-group-item"><strong>Created:</strong> {{ job.created_at.strftime('%b %d, %Y %H:%M') }}</li>
+                <li class="list-group-item"><strong>Started:</strong> {% if job.started_at %}{{ job.started_at.strftime('%H:%M:%S') }}{% else %}-{% endif %}</li>
+                <li class="list-group-item"><strong>Finished:</strong> {% if job.finished_at %}{{ job.finished_at.strftime('%H:%M:%S') }}{% else %}-{% endif %}</li>
+                <li class="list-group-item"><strong>Return Code:</strong> {% if job.return_code is not none %}{{ job.return_code }}{% else %}-{% endif %}</li>
+                <li class="list-group-item">
+                    <strong>Environment Variables:</strong>
+                    {% if job.env %}
+                    <ul class="list-unstyled mt-2 mb-0">
+                        {% for key, value in job.env.items() %}
+                        <li><code>{{ key }}={{ value }}</code></li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <span class="text-muted">None</span>
+                    {% endif %}
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<p class="mt-4">
+    <a href="/jobs">← Back to Jobs</a>
+</p>
+{% endblock %}

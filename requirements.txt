@@ -13,3 +13,5 @@ uvicorn[standard]
 jinja2
 python-multipart
 argon2-cffi
+pydantic
+pydantic_settings

@@ -1,8 +1,16 @@
 # packetserver/http/auth.py
+import ax25
+import transaction
 from persistent import Persistent
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 import time
+from persistent.mapping import PersistentMapping
+from persistent.list import PersistentList
+from packetserver.common.util import is_valid_ax25_callsign
+from .database import DbDependency
+from typing import Union
+from ZODB.Connection import Connection
 
 ph = PasswordHasher()
 
@@ -20,6 +28,12 @@ class HttpUser(Persistent):
         self.last_login = None
         self.failed_attempts = 0
 
+        # Check to make sure we're not storing a SSID
+        if is_valid_ax25_callsign(self.username):
+            base = ax25.Address(self.username).call
+            if base.upper() != self.username:
+                raise ValueError(f"'{self.username}' is a callsign with an SSID appended. Please use base callsign.")
+
         # New fields
         self._enabled = True  # HTTP access enabled by default
         # rf_enabled is a @property – no direct storage needed
@@ -28,69 +42,60 @@ class HttpUser(Persistent):
     # Simple enabled flag (admin can disable HTTP login entirely)
     # ------------------------------------------------------------------
     @property
-    def enabled(self) -> bool:
+    def http_enabled(self) -> bool:
         return getattr(self, '_enabled', True)
 
-    @enabled.setter
-    def enabled(self, value: bool):
+    @http_enabled.setter
+    def http_enabled(self, value: bool):
         self._enabled = bool(value)
         self._p_changed = True
 
-    # ------------------------------------------------------------------
-    # rf_enabled property – tied directly to the main server's blacklist
-    # ------------------------------------------------------------------
-    @property
-    def rf_enabled(self) -> bool:
+    #
+    # rf enabled checks..
+    #
+
+    def is_rf_enabled(self, db: Union[DbDependency,Connection]) -> bool:
         """
-        True if the callsign is NOT in the global blacklist.
-        This allows HTTP users to act as RF gateways only if explicitly allowed.
+        Check if RF gateway is enabled (i.e., callsign NOT in global blacklist).
+        Requires an open ZODB connection.
         """
-        from ZODB import DB  # deferred import to avoid circular issues
-        # We'll get the db from the transaction in most contexts
-        # But for safety, we'll reach into the current connection's root
-        import transaction
-        try:
-            root = transaction.get().db().root()
+        if type(db) is Connection:
+            root = db.root()
             blacklist = root.get('config', {}).get('blacklist', [])
             return self.username not in blacklist
-        except Exception:
-            # If we're outside a transaction (e.g. during tests), default safe
-            return False
+        with db.transaction() as conn:
+            root = conn.root()
+            blacklist = root.get('config', {}).get('blacklist', [])
+            return self.username not in blacklist
 
-    @rf_enabled.setter
-    def rf_enabled(self, allow: bool):
+    def set_rf_enabled(self, db: DbDependency, allow: bool):
         """
-        Enable/disable RF gateway capability by adding/removing from the global blacklist.
+        Enable/disable RF gateway by adding/removing from global blacklist.
+        Requires an open ZODB connection (inside a transaction).
         Only allows enabling if the username is a valid AX.25 callsign.
         """
-        import transaction
-        from packetserver.utils import is_valid_ax25_callsign  # assuming you have this helper
+        from packetserver.common.util import is_valid_ax25_callsign  # our validator
+        with db.transaction() as conn:
+            root = conn.root()
+            config = root.setdefault('config', PersistentMapping())
+            blacklist = config.setdefault('blacklist', PersistentList())
 
-        root = transaction.get().db().root()
-        config = root.setdefault('config', PersistentMapping())
-        blacklist = config.setdefault('blacklist', PersistentList())
+            upper_name = self.username
 
-        upper_name = self.username
+            if allow:
+                if not is_valid_ax25_callsign(upper_name):
+                    raise ValueError(f"{upper_name} is not a valid AX.25 callsign – cannot enable RF access")
+                if upper_name in blacklist:
+                    blacklist.remove(upper_name)
+                    blacklist._p_changed = True
+            else:
+                if upper_name not in blacklist:
+                    blacklist.append(upper_name)
+                    blacklist._p_changed = True
 
-        if allow:
-            # Trying to enable RF access
-            if not is_valid_ax25_callsign(upper_name):
-                raise ValueError(f"{upper_name} is not a valid AX.25 callsign – cannot enable RF access")
-
-            if upper_name in blacklist:
-                blacklist.remove(upper_name)
-                config['blacklist'] = blacklist
-                self._p_changed = True
-        else:
-            # Disable RF access
-            if upper_name not in blacklist:
-                blacklist.append(upper_name)
-                config['blacklist'] = blacklist
-                self._p_changed = True
-
-        # Ensure changes are marked
-        root._p_changed = True
-        config._p_changed = True
+            config._p_changed = True
+            root._p_changed = True
+            transaction.commit()
 
     # ------------------------------------------------------------------
     # Password handling (unchanged)

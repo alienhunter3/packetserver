@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Messages - PacketServer{% endblock %}
+
+{% block content %}
+<h1>Messages</h1>
+<div class="mb-4 text-end">
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#composeModal">
+        Compose New Message
+    </button>
+</div>
+
+<div class="mb-3">
+    <a href="?msg_type=received" class="btn btn-sm {% if msg_type == 'received' %}btn-primary{% else %}btn-outline-primary{% endif %}">Received</a>
+    <a href="?msg_type=sent" class="btn btn-sm {% if msg_type == 'sent' %}btn-primary{% else %}btn-outline-primary{% endif %}">Sent</a>
+    <a href="?msg_type=all" class="btn btn-sm {% if msg_type == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">All</a>
+</div>
+
+{% if messages %}
+<ul class="message-list">
+    {% for msg in messages %}
+    <li>
+        <strong><a href="/dashboard/message/{{ msg.id }}">{{ msg.text[:60] }}{% if msg.text|length > 60 %}...{% endif %}</a></strong>
+        {% if msg.has_attachments %}<span class="text-info"> (Attachments)</span>{% endif %}
+        {% if not msg.retrieved %}<span class="text-warning"> (Unread)</span>{% endif %}
+        <span class="meta">
+            From: {{ msg.from }} | To: {{ msg.to | join(', ') }} | {{ msg.sent_at[:10] }} {{ msg.sent_at[11:19] }}
+        </span>
+        <div class="preview">{{ msg.text[:200] }}{% if msg.text|length > 200 %}...{% endif %}</div>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p>No messages found.</p>
+{% endif %}
+
+<p><a href="/dashboard">← Back to Dashboard</a></p>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}New Job - {{ current_user }}{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Queue New Job</h2>
+
+<div class="card">
+    <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label class="form-label">Command</label>
+                <textarea name="cmd" class="form-control" rows="3" placeholder="e.g. python script.py --input data.txt" required></textarea>
+                <div class="form-text">Space-separated command and arguments (like a shell command).</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Environment Variables</label>
+                <div id="env-fields">
+                    <div class="row mb-2 env-row">
+                        <div class="col"><input type="text" name="env_keys" class="form-control" placeholder="KEY"></div>
+                        <div class="col"><input type="text" name="env_values" class="form-control" placeholder="value"></div>
+                        <div class="col-auto"><button type="button" class="btn btn-outline-danger btn-sm" onclick="this.parentElement.parentElement.remove()">Remove</button></div>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addEnvRow()">+ Add Env Var</button>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Files (scripts, config, data)</label>
+                <input type="file" name="files" class="form-control" multiple>
+                <div class="form-text">Uploaded files will be available in the container's working directory.</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary me-2">Queue Job</button>
+            <a href="/jobs" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+
+<script>
+function addEnvRow() {
+    const container = document.getElementById('env-fields');
+    const row = document.createElement('div');
+    row.className = 'row mb-2 env-row';
+    row.innerHTML = `
+        <div class="col"><input type="text" name="env_keys" class="form-control" placeholder="KEY"></div>
+        <div class="col"><input type="text" name="env_values" class="form-control" placeholder="value"></div>
+        <div class="col-auto"><button type="button" class="btn btn-outline-danger btn-sm" onclick="this.parentElement.parentElement.remove()">Remove</button></div>
+    `;
+    container.appendChild(row);
+}
+</script>
+{% endblock %}

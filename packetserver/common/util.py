@@ -10,6 +10,14 @@ import string
 from persistent.mapping import PersistentMapping
 from persistent.list import PersistentList
 
+# Pre-compiled regex for performance
+_AX25_CALLSIGN_REGEX = re.compile(
+    r'^[A-Z0-9]{1,6}(-[0-9]{1,2})?$'
+)
+
+# Regex for base callsign only (no SSID)
+_BASE_CALLSIGN_REGEX = re.compile(r'^[A-Z][A-Z0-9]{0,5}$')
+
 def email_valid(email: str) -> bool:
     """Taken from https://www.geeksforgeeks.org/check-if-email-address-valid-or-not-in-python/"""
     regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
@@ -173,3 +181,69 @@ def convert_from_persistent(data):
         return [convert_from_persistent(item) for item in data]
     else:
         return data
+
+def is_valid_ax25_callsign(callsign: str) -> bool:
+    """
+    Validate an AX.25 callsign (with optional SSID).
+
+    Rules:
+    - Base: 1-6 uppercase alphanumeric, must start with letter (A-Z)
+    - Optional: single '-' followed by 1-2 digits (0-15)
+    - No spaces, lowercase, or other characters
+
+    Examples:
+        W1AW       → True
+        W1AW-1     → True
+        W1AW-15    → True
+        1A2BCD     → False (starts with digit)
+        w1aw       → False (lowercase)
+        W1AW-     → False (no SSID digits)
+        W1AW--1    → False (double dash)
+        W1AW-16    → False (SSID >15)
+    """
+    if not callsign:
+        return False
+    callsign = callsign.strip().upper()
+    if not _AX25_CALLSIGN_REGEX.match(callsign):
+        return False
+
+    # Extra check: base must start with letter (not digit)
+    base = callsign.split('-')[0]
+    if not base[0].isalpha():
+        return False
+
+    # If SSID present, ensure 0-15
+    if '-' in callsign:
+        ssid_str = callsign.split('-')[1]
+        if int(ssid_str) > 15:
+            return False
+
+    return True
+
+def is_valid_base_ax25_callsign(base_call: str) -> bool:
+    """
+    Validate an AX.25 **base** callsign (without SSID).
+
+    Rules:
+    - 1–6 characters total
+    - Must start with an uppercase letter (A–Z)
+    - Remaining characters: uppercase letters A–Z or digits 0–9
+    - No hyphen, no SSID, no other characters
+
+    Examples:
+        W1AW     → True
+        M0XYZ    → True
+        K9ABC    → True (6 chars)
+        1ABC     → False (starts with digit)
+        W1AW-    → False (has hyphen)
+        W1AW-1   → False (has SSID)
+        w1aw     → False (lowercase)
+        A        → True (single letter)
+        ABC1234  → False (7 chars)
+
+    Use this when you specifically need the base portion (e.g., before adding SSID).
+    """
+    if not base_call:
+        return False
+    base_call = base_call.strip().upper()
+    return bool(_BASE_CALLSIGN_REGEX.match(base_call))

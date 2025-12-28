@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}My Jobs - {{ current_user }}{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">My Jobs</h2>
+    <a href="/jobs/new" class="btn btn-success">
+        <i class="bi bi-plus-lg"></i> New Job
+    </a>
+</div>
+
+{% if jobs %}
+<table class="table table-striped table-hover">
+    <thead class="table-dark">
+        <tr>
+            <th>ID</th>
+            <th>Command</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Started</th>
+            <th>Finished</th>
+            <th>Return Code</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for job in jobs %}
+    <tr class="clickable-row" style="cursor: pointer;" onclick="window.location='/jobs/{{ job.id }}'">
+        <td>{{ job.id }}</td>
+        <td>
+            <code>
+            {% if job.cmd is string %}
+                {{ job.cmd | truncate(80, True, '...') }}
+            {% else %}
+                {{ job.cmd | join(' ') | truncate(80, True, '...') }}
+            {% endif %}
+            </code>
+        </td>
+        <td>
+            {% set status = job.status | upper %}
+            {% if status == "QUEUED" %}
+            <span class="badge bg-secondary">Queued</span>
+            {% elif status == "RUNNING" %}
+            <span class="badge bg-primary">Running</span>
+            {% elif status == "COMPLETED" %}
+            <span class="badge bg-success">Completed</span>
+            {% elif status == "FAILED" %}
+            <span class="badge bg-danger">Failed</span>
+            {% elif status == "CANCELLED" %}
+            <span class="badge bg-warning">Cancelled</span>
+            {% else %}
+            <span class="badge bg-light text-dark">{{ job.status }}</span>
+            {% endif %}
+        </td>
+        <td>{{ job.created_at.strftime('%b %d, %Y %H:%M') }}</td>
+        <td>{% if job.started_at %}{{ job.started_at.strftime('%H:%M') }}{% else %}-{% endif %}</td>
+        <td>{% if job.finished_at %}{{ job.finished_at.strftime('%H:%M') }}{% else %}-{% endif %}</td>
+        <td>
+            {% if job.return_code is not none %}
+            <code>{{ job.return_code }}</code>
+            {% else %}
+            -
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="alert alert-info">
+    No jobs yet. When you run containerized tasks (e.g., packet processing scripts), they'll appear here.
+</div>
+{% endif %}
+
+<style>
+.clickable-row:hover {
+    background-color: rgba(0,123,255,0.1);
+}
+</style>
+{% endblock %}
