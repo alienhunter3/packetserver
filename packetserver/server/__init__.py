@@ -3,7 +3,7 @@ import tempfile
 
 import pe.app
 from packetserver.common import Response, Message, Request, PacketServerConnection, send_response, send_blank_response
-from packetserver.server.constants import default_server_config
+from packetserver.server.constants import default_server_config, default_server_name
 from packetserver.server.users import User
 from copy import deepcopy
 import ax25
@@ -74,6 +74,13 @@ class Server:
                 logging.debug("no config, writing blank default config")
                 conn.root.config = PersistentMapping(deepcopy(default_server_config))
                 conn.root.config['blacklist'] = PersistentList()
+            logging.debug(f"Setting server callsign in db to: {self.callsign}")
+            conn.root.server_callsign = self.callsign
+            for key in ['motd', 'operator']:
+                if key not in conn.root.config:
+                    conn.root.config[key] = ""
+            if 'server_name' not in conn.root.config:
+                conn.root.config['server_name'] = default_server_name
             if 'SYSTEM' not in conn.root.config['blacklist']:
                 logging.debug("Adding 'SYSTEM' to blacklist in case someone feels like violating FCC rules.")
                 conn.root.config['blacklist'].append('SYSTEM')

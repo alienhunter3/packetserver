@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}My Objects - {{ current_user }}{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">My Objects</h2>
+
+<!-- Simple File Upload Form -->
+<div class="card mb-4">
+    <div class="card-body">
+        <h5>Upload File</h5>
+        <form action="/api/v1/objects" method="post" enctype="multipart/form-data">
+            <div class="mb-3">
+                <input type="file" name="file" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <input type="text" name="name" class="form-control" placeholder="Optional name">
+            </div>
+            <div class="form-check mb-3">
+                <input type="checkbox" name="private" class="form-check-input" checked>
+                <label class="form-check-label">Private</label>
+            </div>
+            <button type="submit" class="btn btn-primary">Upload</button>
+        </form>
+    </div>
+</div>
+
+<!-- Quick Text Object -->
+<div class="card mb-4">
+    <div class="card-body">
+        <h5>Create Text Object</h5>
+        <form action="/api/v1/objects/text" method="post">
+            <div class="mb-3">
+                <textarea name="text" class="form-control" rows="4" placeholder="Enter text content..." required></textarea>
+            </div>
+            <div class="mb-3">
+                <input type="text" name="name" class="form-control" placeholder="Optional name (e.g. note.txt)">
+            </div>
+            <div class="form-check mb-3">
+                <input type="checkbox" name="private" class="form-check-input" checked>
+                <label class="form-check-label">Private</label>
+            </div>
+            <button type="submit" class="btn btn-success">Create</button>
+        </form>
+    </div>
+</div>
+
+<!-- Objects Table -->
+{% if objects %}
+<table class="table table-striped table-hover">
+    <thead class="table-dark">
+        <tr>
+            <th>Name</th>
+            <th>Size</th>
+            <th>Type</th>
+            <th>Uploaded</th>
+            <th>Visibility</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for obj in objects %}
+    <tr>
+        <td><a href="/objects/{{ obj.uuid }}"><strong>{{ obj.name }}</strong></a></td>
+        <td>
+            {% if obj.size < 1024 %}
+                {{ obj.size }} bytes
+            {% elif obj.size < 1048576 %}
+                {{ "%0.1f" | format(obj.size / 1024) }} KB
+            {% else %}
+                {{ "%0.1f" | format(obj.size / 1048576) }} MB
+            {% endif %}
+        </td>
+        <td>
+            {% if obj.binary %}
+            <span class="badge bg-secondary">Binary</span>
+            {% else %}
+            <span class="badge bg-info">Text</span>
+            {% endif %}
+        </td>
+        <td>{{ obj.created_at.strftime('%b %d, %Y') }}</td>
+        <td>
+            {% if obj.private %}
+            <span class="badge bg-warning">Private</span>
+            {% else %}
+            <span class="badge bg-success">Public</span>
+            {% endif %}
+        </td>
+        <td class="text-nowrap d-flex align-items-center gap-2">
+            {% if not obj.binary %}
+            <a href="/api/v1/objects/{{ obj.uuid }}/text" class="btn btn-sm btn-outline-info" target="_blank">View Text</a>
+            {% endif %}
+            <a href="/api/v1/objects/{{ obj.uuid }}/download" class="btn btn-sm btn-primary">Download</a>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No objects uploaded yet.</p>
+{% endif %}
+
+
+{% endblock %}

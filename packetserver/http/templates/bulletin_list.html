@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Bulletins - {{ server_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Bulletins</h1>
+
+    {% if current_user %}
+    <p class="mb-4"><a href="/bulletins/new" class="btn btn-primary">Create New Bulletin</a></p>
+    {% else %}
+    <p class="mb-4"><em>Log in to create bulletins.</em></p>
+    {% endif %}
+
+    {% if bulletins %}
+    <ul class="list-unstyled">
+        {% for bull in bulletins %}
+        <li class="mb-4 pb-4 border-bottom">
+            <strong><a href="/bulletins/{{ bull.id }}" class="text-decoration-none">{{ bull.subject }}</a></strong>
+            <div class="text-muted small">by {{ bull.author }} on {{ bull.created_at[:10] }}</div>
+            <div class="mt-2">{{ bull.body[:200] }}{% if bull.body|length > 200 %}...{% endif %}</div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>No bulletins yet.</p>
+    {% endif %}
+
+    <p><a href="{{ url_for('dashboard') }}">← Back to Dashboard</a></p>
+</div>
+{% endblock %}

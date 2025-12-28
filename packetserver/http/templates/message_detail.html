@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Message {{ message.id }} - {{ current_user }}{% endblock %}
+<button type="button" class="btn btn-primary btn-sm me-2" id="replyButton">
+    Reply
+</button>
+{% block content %}
+<dl class="row">
+    <dt class="col-sm-2">Id</dt>
+    <dd class="col-sm-10">{{ message.id }}</dd>
+
+    <dt class="col-sm-2">From</dt>
+    <dd class="col-sm-10">{{ message.from }}</dd>
+
+    <dt class="col-sm-2">To</dt>
+    <dd class="col-sm-10">{{ message.to | join(', ') }}</dd>
+
+    <dt class="col-sm-2">Date</dt>
+    <dd class="col-sm-10">{{ message.sent_at[:10] }} {{ message.sent_at[11:19] }} UTC</dd>
+
+    <dt class="col-sm-2">Status</dt>
+    <dd class="col-sm-10">
+        {% if message.retrieved %}
+            <span class="text-success">Read</span>
+        {% else %}
+            <span class="text-warning">Unread</span>
+        {% endif %}
+    </dd>
+
+    {% if message.has_attachments %}
+    <dt class="col-sm-2">Attachments</dt>
+    <dd class="col-sm-10 text-info">Has {{ message.attachments | length }} attachment(s) (not shown yet)</dd>
+    {% endif %}
+</dl>
+
+<h3>Body</h3>
+<button type="button" class="btn btn-primary btn-sm me-2" id="replyButton">
+    Reply
+</button>
+<pre class="bg-light p-3 border">{{ message.text }}</pre>
+
+<p class="nav-links">
+    <a href="/dashboard">← Back to Dashboard</a>
+    {% if request.url.path.startswith("/dashboard/message/") %}
+        | <a href="/messages">All Messages</a>
+    {% endif %}
+</p>
+
+<script>
+    document.getElementById('replyButton')?.addEventListener('click', function() {
+        // Set the "To" field to the original sender
+        const fromCall = "{{ message.from | e }}";  // safely escape
+        document.getElementById('to_call').value = fromCall;
+
+        // Clear the message body (or optionally pre-fill with quote)
+        document.getElementById('message_text').value = '';
+
+        // Open the compose modal
+        const modal = new bootstrap.Modal(document.getElementById('composeModal'));
+        modal.show();
+        modal._dialog.querySelector('#message_text').focus();
+    });
+</script>
+{% endblock %}

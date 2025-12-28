@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - {{ current_user }}{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">User Profile: {{ profile.username }}</h2>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <strong>General Information</strong>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr><th>Status</th><td>{{ profile.status or "Not set" }}</td></tr>
+                    <tr><th>Bio</th><td>{{ profile.bio or "No bio" }}</td></tr>
+                    <tr><th>Email</th><td>{{ profile.email or "Not set" }}</td></tr>
+                    <tr><th>Location</th><td>{{ profile.location or "Not set" }}</td></tr>
+                    <tr><th>Social Links</th><td>{% if profile.socials %}{{ profile.socials | join(', ') }}{% else %}None{% endif %}</td></tr>
+                    <tr><th>Created</th><td>{{ profile.created_at }}</td></tr>
+                    <tr><th>Last Seen</th><td>{{ profile.last_seen }}</td></tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <strong>HTTP Gateway Access</strong>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr><th>HTTP Enabled</th><td>{% if profile.http_enabled %}<span class="text-success">Yes</span>{% else %}<span class="text-danger">No</span>{% endif %}</td></tr>
+                    <tr><th>RF Gateway Enabled</th><td>{% if profile.rf_enabled %}<span class="text-success">Yes</span>{% else %}<span class="text-warning">No (blacklisted)</span>{% endif %}</td></tr>
+                    <tr><th>HTTP Account Created</th><td>{{ profile.http_created_at | timestamp_to_date }}</td></tr>
+                    <tr><th>Last HTTP Login</th><td>{{ profile.http_last_login | timestamp_to_date or "Never" }}</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<a href="{{ url_for('dashboard') }}" class="btn btn-secondary mt-3">← Back to Dashboard</a>
+{% endblock %}

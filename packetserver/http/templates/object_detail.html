@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}{{ obj.name }} - Edit Object{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <h2>Edit Object: {{ obj.name }}</h2>
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input type="text" name="name" class="form-control" value="{{ obj.name }}">
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input type="checkbox" name="private" class="form-check-input" {% if obj.private %}checked{% endif %}>
+                        <label class="form-check-label">Private (only you can see/download)</label>
+                    </div>
+
+                    <hr>
+
+                    <h5>Replace Content</h5>
+                    <div class="mb-3">
+                        <label class="form-label">New Text Content (forces text type)</label>
+                        <textarea name="new_text" class="form-control" rows="8" placeholder="Paste new text here to overwrite as text object"></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Or Upload New File (forces binary)</label>
+                        <input type="file" name="new_file" class="form-control">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Or Paste Base64 (advanced, forces binary)</label>
+                        <textarea name="new_base64" class="form-control" rows="4" placeholder="Paste base64-encoded data"></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-success me-2">Save Changes</button>
+                    <a href="/objects" class="btn btn-secondary">Cancel</a>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h5>Danger Zone</h5>
+                <button type="button" class="btn btn-danger" onclick="deleteObject('{{ obj.uuid }}', '{{ obj.name | e }}')">Delete This Object Permanently</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">Current Details</div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item"><strong>UUID:</strong> {{ obj.uuid }}</li>
+                <li class="list-group-item"><strong>Size:</strong> {{ obj.size }} bytes</li>
+                <li class="list-group-item"><strong>Type:</strong> {% if obj.binary %}Binary{% else %}Text{% endif %}</li>
+                <li class="list-group-item"><strong>Uploaded:</strong> {{ obj.created_at.strftime('%b %d, %Y') }}</li>
+                <li class="list-group-item"><strong>Modified:</strong> {{ obj.modified_at.strftime('%b %d, %Y') }}</li>
+            </ul>
+            <div class="card-body">
+                <a href="/api/v1/objects/{{ obj.uuid }}/download" class="btn btn-primary w-100 mb-2">Download Current Version</a>
+                {% if not obj.binary %}
+                <a href="/api/v1/objects/{{ obj.uuid }}/text" class="btn btn-outline-info w-100" target="_blank">View as Text</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function deleteObject(uuid, name) {
+    if (!confirm(`Permanently delete "${name}"? This cannot be undone.`)) return;
+    const response = await fetch(`/api/v1/objects/${uuid}`, { method: 'DELETE' });
+    if (response.ok) {
+        window.location.href = '/objects';
+    } else {
+        alert('Delete failed');
+    }
+}
+</script>
+{% endblock %}

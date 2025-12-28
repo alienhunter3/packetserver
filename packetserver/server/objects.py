@@ -1,4 +1,5 @@
 """Server object storage system."""
+import traceback
 from copy import deepcopy
 
 import persistent
@@ -9,6 +10,7 @@ import datetime
 from typing import Self,Union,Optional
 from packetserver.common import PacketServerConnection, Request, Response, Message, send_response, send_blank_response
 import ZODB
+from ZODB.Connection import Connection
 import logging
 import uuid
 from uuid import UUID
@@ -77,6 +79,10 @@ class Object(persistent.Persistent):
                 self.touch()
 
     @property
+    def data_bytes(self):
+        return self._data
+
+    @property
     def owner(self) -> Optional[UUID]:
         return self._owner
 
@@ -96,12 +102,12 @@ class Object(persistent.Persistent):
         logging.debug(f"chowning object {self} to user {username}")
         un = username.strip().upper()
         old_owner_uuid = self._owner
-        with db.transaction() as db:
-            user = User.get_user_by_username(username, db.root())
-            old_owner = User.get_user_by_uuid(old_owner_uuid, db.root())
+        with db.transaction() as conn:
+            user = User.get_user_by_username(username, conn.root())
+            old_owner = User.get_user_by_uuid(old_owner_uuid, conn.root())
             if user:
                 logging.debug(f"new owner user exists: {user}")
-                db.root.objects[self.uuid].owner = user.uuid
+                conn.root.objects[self.uuid].owner = user.uuid
                 if old_owner_uuid:
                     if old_owner:
                         logging.debug(f"The object has an old owner user: {old_owner}")
@@ -118,35 +124,57 @@ class Object(persistent.Persistent):
         return db_root['objects'].get(obj)
 
     @classmethod
-    def get_objects_by_username(cls, username: str, db: ZODB.DB) -> list[Self]:
+    def get_objects_by_username(cls, username: str, db: Union[ZODB.DB,Connection]) -> list[Self]:
         un = username.strip().upper()
         objs = []
-        with db.transaction() as db:
-            user = User.get_user_by_username(username, db.root())
+        if type(db) is Connection:
+            conn = db
+            user = User.get_user_by_username(un, conn.root())
             if user:
                 uuids = user.object_uuids
                 for u in uuids:
                     try:
-                        obj = cls.get_object_by_uuid(u, db)
+                        obj = cls.get_object_by_uuid(u, conn.root())
                         if obj:
                             objs.append(obj)
                     except:
                         pass
+        else:
+            with db.transaction() as conn:
+                user = User.get_user_by_username(un, conn.root())
+                if user:
+                    uuids = user.object_uuids
+                    for u in uuids:
+                        try:
+                            obj = cls.get_object_by_uuid(u, conn.root())
+                            if obj:
+                                objs.append(obj)
+                        except:
+                            pass
         return objs
 
     @property
     def uuid(self) -> Optional[UUID]:
         return self._uuid
 
-    def write_new(self, db: ZODB.DB) -> UUID:
+    def write_new(self, db: ZODB.DB, username: str = None) -> UUID:
         if self.uuid:
             raise KeyError("Object already has UUID. Manually clear it to write it again.")
         self._uuid = uuid.uuid4()
-        with db.transaction() as db:
-            while self.uuid in db.root.objects:
+
+        with db.transaction() as conn:
+            while self.uuid in conn.root.objects:
                 self._uuid = uuid.uuid4()
-            db.root.objects[self.uuid] = self
+            conn.root.objects[self.uuid] = self
             self.touch()
+        logging.debug(f"New object assigned uuid {self.uuid}")
+        if username:
+            logging.debug(f"Attempting to assign new object to user: {username}")
+            try:
+                self.chown(username,db)
+                logging.debug(f"New object assigned to user: {username}")
+            except:
+                logging.warning(f"Unable to chown this object to user {username}: {traceback.format_exc()}")
         return self.uuid
 
     def to_dict(self, include_data: bool = True) -> dict:

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>New Bulletin - PacketServer</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+</head>
+<body>
+    <h1>Create New Bulletin</h1>
+
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post">
+        <label for="subject">Subject</label>
+        <input type="text" id="subject" name="subject" required>
+
+        <label for="body">Body</label>
+        <textarea id="body" name="body" required></textarea>
+
+        <button type="submit">Create Bulletin</button>
+    </form>
+
+    <p><a href="/bulletins">← Back to Bulletins</a> | <a href="/dashboard">Dashboard</a></p>
+</body>
+</html>

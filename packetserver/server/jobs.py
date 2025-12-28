@@ -202,6 +202,7 @@ class Job(persistent.Persistent):
             "return_code": self.return_code,
             "artifacts": [],
             "status": self.status.name,
+            "env": self.env,
             "id": self.id
         }
         if include_data:

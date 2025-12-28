@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ bulletin.subject }} - PacketServer</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+</head>
+<body>
+    <h1>{{ bulletin.subject }}</h1>
+    <p class="meta">By {{ bulletin.author }} on {{ bulletin.created_at[:10] }}</p>
+
+    <pre>{{ bulletin.body }}</pre>
+
+    <p>
+        <a href="/bulletins">← All Bulletins</a> |
+        <a href="/dashboard">Dashboard</a>
+    </p>
+    {% if bulletin.author == current_user %}
+    <div class="card mt-5 border-danger">
+        <div class="card-header bg-danger text-white">
+            <h5 class="mb-0">Danger Zone</h5>
+        </div>
+        <div class="card-body">
+            <p class="card-text">Once you delete a bulletin, there is no going back. Please be certain.</p>
+            <button type="button" class="btn btn-danger"
+                onclick='deleteBulletin({{ bulletin.id }}, "{{ bulletin.subject | replace("'", "\\'") | replace('"', '\\"') }}")'>
+                Delete This Bulletin Permanently
+            </button>
+        </div>
+    </div>
+
+    <script>
+    async function deleteBulletin(id, subject) {
+        console.log("Delete clicked for bulletin " + id);
+        if (!confirm(`Permanently delete bulletin "${subject}"? This cannot be undone.`)) {
+            return;
+        }
+        const response = await fetch(`/api/v1/bulletins/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+            window.location.href = '/bulletins';
+        } else {
+            const errorText = await response.text();
+            alert('Delete failed: ' + (errorText || 'Unknown error'));
+        }
+    }
+    </script>
+    {% endif %}
+</body>
+</html>
